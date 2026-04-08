@@ -1,0 +1,65 @@
+import { type PropertyData, formatCurrency, adjustToPresent } from "@/lib/mockData";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { ExternalLink } from "lucide-react";
+
+interface ComparableTableProps {
+  properties: PropertyData[];
+  selected: string[];
+  onToggle: (id: string) => void;
+  maxSelection: number;
+}
+
+export default function ComparableTable({ properties, selected, onToggle, maxSelection }: ComparableTableProps) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-card">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border bg-muted/50">
+            <th className="px-4 py-3 text-left font-display font-semibold text-muted-foreground">Selecionar</th>
+            <th className="px-4 py-3 text-left font-display font-semibold text-muted-foreground">Endereço</th>
+            <th className="px-4 py-3 text-left font-display font-semibold text-muted-foreground">Detalhes</th>
+            <th className="px-4 py-3 text-right font-display font-semibold text-muted-foreground">Valor Venal</th>
+            <th className="px-4 py-3 text-right font-display font-semibold text-muted-foreground">Valor 2026</th>
+            <th className="px-4 py-3 text-right font-display font-semibold text-muted-foreground">R$/m²</th>
+          </tr>
+        </thead>
+        <tbody>
+          {properties.map((p, i) => {
+            const isSelected = selected.includes(p.id);
+            const adjusted = adjustToPresent(p.venalValue, p.year);
+            return (
+              <tr
+                key={p.id}
+                className={`border-b border-border transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/30"}`}
+                style={{ animationDelay: `${i * 80}ms` }}
+              >
+                <td className="px-4 py-4">
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => onToggle(p.id)}
+                    disabled={!isSelected && selected.length >= maxSelection}
+                  />
+                </td>
+                <td className="px-4 py-4">
+                  <p className="font-medium text-foreground">{p.address}</p>
+                  <p className="text-xs text-muted-foreground">{p.neighborhood} · Zona {p.fiscalZone}</p>
+                </td>
+                <td className="px-4 py-4">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant="secondary" className="text-xs">{p.type}</Badge>
+                    <Badge variant="outline" className="text-xs">{p.area} m²</Badge>
+                    <Badge variant="outline" className="text-xs">{p.year}</Badge>
+                  </div>
+                </td>
+                <td className="px-4 py-4 text-right font-medium text-foreground">{formatCurrency(p.venalValue)}</td>
+                <td className="px-4 py-4 text-right font-semibold text-primary">{formatCurrency(adjusted)}</td>
+                <td className="px-4 py-4 text-right text-muted-foreground">{formatCurrency(Math.round(adjusted / p.area))}/m²</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
