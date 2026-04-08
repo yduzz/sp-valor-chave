@@ -14,7 +14,99 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      evaluations: {
+        Row: {
+          address: string
+          created_at: string
+          id: string
+          per_sqm_avg: number | null
+          per_sqm_max: number | null
+          per_sqm_min: number | null
+          rent_avg: number | null
+          rent_max: number | null
+          rent_min: number | null
+          sale_avg: number | null
+          sale_max: number | null
+          sale_min: number | null
+          selected_property_ids: string[]
+        }
+        Insert: {
+          address: string
+          created_at?: string
+          id?: string
+          per_sqm_avg?: number | null
+          per_sqm_max?: number | null
+          per_sqm_min?: number | null
+          rent_avg?: number | null
+          rent_max?: number | null
+          rent_min?: number | null
+          sale_avg?: number | null
+          sale_max?: number | null
+          sale_min?: number | null
+          selected_property_ids: string[]
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          id?: string
+          per_sqm_avg?: number | null
+          per_sqm_max?: number | null
+          per_sqm_min?: number | null
+          rent_avg?: number | null
+          rent_max?: number | null
+          rent_min?: number | null
+          sale_avg?: number | null
+          sale_max?: number | null
+          sale_min?: number | null
+          selected_property_ids?: string[]
+        }
+        Relationships: []
+      }
+      properties: {
+        Row: {
+          ad_link: string | null
+          address: string
+          area: number | null
+          created_at: string
+          fiscal_zone: string | null
+          id: string
+          neighborhood: string | null
+          price_per_sqm: number | null
+          property_type: string | null
+          updated_at: string
+          venal_value: number
+          year: number
+        }
+        Insert: {
+          ad_link?: string | null
+          address: string
+          area?: number | null
+          created_at?: string
+          fiscal_zone?: string | null
+          id?: string
+          neighborhood?: string | null
+          price_per_sqm?: number | null
+          property_type?: string | null
+          updated_at?: string
+          venal_value: number
+          year: number
+        }
+        Update: {
+          ad_link?: string | null
+          address?: string
+          area?: number | null
+          created_at?: string
+          fiscal_zone?: string | null
+          id?: string
+          neighborhood?: string | null
+          price_per_sqm?: number | null
+          property_type?: string | null
+          updated_at?: string
+          venal_value?: number
+          year?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
