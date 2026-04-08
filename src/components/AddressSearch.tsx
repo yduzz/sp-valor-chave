@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, MapPin } from "lucide-react";
+import { Search, MapPin, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { searchAddress, type NominatimResult } from "@/lib/nominatim";
+import { searchAddress, formatResult, type NominatimResult } from "@/lib/nominatim";
 
 interface AddressSearchProps {
   onSelect: (address: string) => void;
@@ -13,6 +13,7 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
   const [results, setResults] = useState<NominatimResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
 
@@ -39,21 +40,34 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
       setResults(data);
       setIsOpen(data.length > 0);
       setIsLoading(false);
-    }, 400);
+      setActiveIndex(-1);
+    }, 350);
   }, [query]);
 
   const handleSelect = (result: NominatimResult) => {
-    const name = result.address.road || result.display_name.split(",")[0];
-    setQuery(name);
+    const { full } = formatResult(result);
+    setQuery(full);
     setIsOpen(false);
-    onSelect(name);
+    onSelect(full);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
+      setActiveIndex((prev) => Math.min(prev + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => Math.max(prev - 1, -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0 && results[activeIndex]) {
+        handleSelect(results[activeIndex]);
+      } else {
+        setIsOpen(false);
+        onSearch(query);
+      }
+    } else if (e.key === "Escape") {
       setIsOpen(false);
-      onSearch(query);
     }
   };
 
@@ -65,31 +79,37 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Digite o endereço completo, ex: Rua Cardeal Arcoverde 1070"
+          onFocus={() => results.length > 0 && setIsOpen(true)}
+          placeholder="Digite o endereço, ex: Rua Cardeal Arcoverde 1070"
           className="h-14 pl-12 pr-4 text-base rounded-xl border-2 border-border bg-card shadow-card focus:border-primary focus:ring-primary"
         />
         {isLoading && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2">
-            <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <Loader2 className="h-4 w-4 text-primary animate-spin" />
           </div>
         )}
       </div>
 
       {isOpen && results.length > 0 && (
         <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-card-xl overflow-hidden">
-          {results.map((result) => (
-            <button
-              key={result.place_id}
-              onClick={() => handleSelect(result)}
-              className="flex items-start gap-3 w-full px-4 py-3 text-left hover:bg-muted transition-colors"
-            >
-              <MapPin className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-foreground">{result.display_name.split(",").slice(0, 3).join(",")}</p>
-                <p className="text-xs text-muted-foreground">{result.display_name.split(",").slice(3).join(",").trim()}</p>
-              </div>
-            </button>
-          ))}
+          {results.map((result, i) => {
+            const { primary, secondary } = formatResult(result);
+            return (
+              <button
+                key={result.place_id}
+                onClick={() => handleSelect(result)}
+                className={`flex items-start gap-3 w-full px-4 py-3 text-left transition-colors ${
+                  i === activeIndex ? "bg-primary/10" : "hover:bg-muted"
+                }`}
+              >
+                <MapPin className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">{primary}</p>
+                  <p className="text-xs text-muted-foreground">{secondary}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
