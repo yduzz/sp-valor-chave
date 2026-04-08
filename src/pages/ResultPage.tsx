@@ -86,7 +86,7 @@ export default function ResultPage() {
           <div className="flex justify-center animate-fade-in">
             <Button variant="hero" size="lg" onClick={() => setShowResult(true)} className="gap-2">
               <BarChart3 className="h-5 w-5" />
-              Gerar Avaliação ({selected.length} selecionado{selected.length > 1 ? "s" : ""})
+              Calcular valor presente 2026 ({selected.length} selecionado{selected.length > 1 ? "s" : ""})
             </Button>
           </div>
         )}
