@@ -120,7 +120,7 @@ export default function ResultPage() {
         ) : (
           <div className="text-center py-16 bg-card rounded-xl border border-border">
             <p className="text-muted-foreground">Nenhum imóvel encontrado para este endereço.</p>
-            <p className="text-sm text-muted-foreground mt-1">Tente buscar por "Rua Cardeal Arcoverde 1070"</p>
+            <p className="text-sm text-muted-foreground mt-1">Tente outro endereço de São Paulo ou refine a busca com o número do imóvel.</p>
           </div>
         )}
 
