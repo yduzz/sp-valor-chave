@@ -26,6 +26,10 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
         <tbody>
           {properties.map((p, i) => {
             const isSelected = selected.includes(p.id);
+            const locationDetails = [p.neighborhood, p.fiscalZone ? `Zona ${p.fiscalZone}` : null]
+              .filter(Boolean)
+              .join(" · ");
+
             return (
               <tr
                 key={p.id}
@@ -41,7 +45,7 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
                 </td>
                 <td className="px-4 py-4">
                   <p className="font-medium text-foreground">{p.address}</p>
-                  <p className="text-xs text-muted-foreground">{p.neighborhood} · Zona {p.fiscalZone}</p>
+                  <p className="text-xs text-muted-foreground">{locationDetails || "Localização complementar indisponível"}</p>
                 </td>
                 <td className="px-4 py-4 text-center">
                   <Badge variant="outline" className="text-xs">{p.year}</Badge>

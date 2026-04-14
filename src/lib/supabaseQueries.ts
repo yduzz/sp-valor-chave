@@ -3,18 +3,40 @@ import type { Tables } from "@/integrations/supabase/types";
 
 export type Property = Tables<"properties">;
 
-export async function searchProperties(address: string): Promise<Property[]> {
-  // Extract just the street name for matching (remove neighborhood, city info from Nominatim)
-  const streetName = address.split(",")[0].trim();
-  
+function extractStreetSearchTerm(address: string) {
+  const primarySegment = address.split(",")[0].trim();
+  const withoutTrailingNumber = primarySegment.replace(/\s+\d+[A-Za-z0-9/-]*.*$/, "").trim();
+
+  return withoutTrailingNumber || primarySegment;
+}
+
+async function fetchPropertiesFromDatabase(searchTerm: string) {
   const { data, error } = await supabase
     .from("properties")
     .select("*")
-    .ilike("address", `%${streetName}%`)
+    .ilike("address", `%${searchTerm}%`)
     .order("year", { ascending: false });
 
   if (error) throw error;
   return data || [];
+}
+
+export async function searchProperties(address: string): Promise<Property[]> {
+  if (!address.trim()) return [];
+
+  const streetSearchTerm = extractStreetSearchTerm(address);
+  const cachedResults = await fetchPropertiesFromDatabase(streetSearchTerm);
+
+  if (cachedResults.length > 0) {
+    return cachedResults;
+  }
+
+  const { data, error } = await supabase.functions.invoke("scrape-properties", {
+    body: { query: address },
+  });
+
+  if (error) throw error;
+  return Array.isArray(data?.properties) ? (data.properties as Property[]) : [];
 }
 
 export async function saveEvaluation(evaluation: {
