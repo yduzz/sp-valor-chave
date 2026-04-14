@@ -4,10 +4,13 @@ import type { Tables } from "@/integrations/supabase/types";
 export type Property = Tables<"properties">;
 
 export async function searchProperties(address: string): Promise<Property[]> {
+  // Extract just the street name for matching (remove neighborhood, city info from Nominatim)
+  const streetName = address.split(",")[0].trim();
+  
   const { data, error } = await supabase
     .from("properties")
     .select("*")
-    .ilike("address", `%${address}%`)
+    .ilike("address", `%${streetName}%`)
     .order("year", { ascending: false });
 
   if (error) throw error;
