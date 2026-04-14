@@ -39,7 +39,6 @@ const WORD_EXPANSIONS: Record<string, string> = {
   TV: "TRAVESSA",
   TRAV: "TRAVESSA",
   PCA: "PRACA",
-  PCA.: "PRACA",
   DR: "DOUTOR",
   DRA: "DOUTORA",
   PROF: "PROFESSOR",
