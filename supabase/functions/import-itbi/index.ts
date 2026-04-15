@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { read, utils } from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
+import * as XLSX from "npm:xlsx@0.18.5";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,13 +50,13 @@ Deno.serve(async (req) => {
         continue;
       }
       const buf = new Uint8Array(await resp.arrayBuffer());
-      const wb = read(buf, { type: "array" });
+      const wb = XLSX.read(buf, { type: "array" });
 
       // Parse all sheets
       const rows: Row[] = [];
       for (const name of wb.SheetNames) {
         const ws = wb.Sheets[name];
-        const data: string[][] = utils.sheet_to_json(ws, { header: 1 });
+        const data: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
         if (!data.length) continue;
 
         // Find header row
