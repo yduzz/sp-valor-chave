@@ -3,29 +3,55 @@ import type { Tables } from "@/integrations/supabase/types";
 
 export type Property = Tables<"properties">;
 
-function extractStreetSearchTerm(address: string) {
+function extractSearchTerms(address: string): { street: string; number: string | null } {
   const primarySegment = address.split(",")[0].trim();
-  const withoutTrailingNumber = primarySegment.replace(/\s+\d+[A-Za-z0-9/-]*.*$/, "").trim();
-
-  return withoutTrailingNumber || primarySegment;
+  // Extract trailing house number
+  const numberMatch = primarySegment.match(/\s+(\d+[A-Za-z0-9/-]*)\s*$/);
+  const number = numberMatch ? numberMatch[1] : null;
+  const street = primarySegment.replace(/\s+\d+[A-Za-z0-9/-]*\s*$/, "").trim() || primarySegment;
+  return { street, number };
 }
 
-async function fetchPropertiesFromDatabase(searchTerm: string) {
-  const { data, error } = await supabase
+async function fetchPropertiesFromDatabase(street: string, number: string | null) {
+  let query = supabase
     .from("properties")
     .select("*")
-    .ilike("address", `%${searchTerm}%`)
-    .order("year", { ascending: false });
+    .ilike("address", `%${street}%`)
+    .order("year", { ascending: false })
+    .limit(200);
 
+  const { data, error } = await query;
   if (error) throw error;
-  return data || [];
+  
+  let results = data || [];
+  
+  // If a specific number was provided, prioritize exact matches
+  if (number && results.length > 0) {
+    const exactMatches = results.filter((p) => {
+      // Check if the address contains the exact number as a separate token
+      const addressUpper = p.address.toUpperCase();
+      const streetUpper = street.toUpperCase();
+      const afterStreet = addressUpper.replace(streetUpper, "").trim();
+      // Match the number at the start of what comes after the street name
+      return afterStreet.startsWith(number) || 
+             addressUpper.includes(` ${number} `) || 
+             addressUpper.includes(` ${number},`) ||
+             addressUpper.endsWith(` ${number}`);
+    });
+    
+    if (exactMatches.length > 0) {
+      return exactMatches;
+    }
+  }
+  
+  return results;
 }
 
 export async function searchProperties(address: string): Promise<Property[]> {
   if (!address.trim()) return [];
 
-  const streetSearchTerm = extractStreetSearchTerm(address);
-  const cachedResults = await fetchPropertiesFromDatabase(streetSearchTerm);
+  const { street, number } = extractSearchTerms(address);
+  const cachedResults = await fetchPropertiesFromDatabase(street, number);
 
   if (cachedResults.length > 0) {
     return cachedResults;
