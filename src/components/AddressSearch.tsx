@@ -1,16 +1,24 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, MapPin, Loader2 } from "lucide-react";
+import { Search, MapPin, Database, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { searchAddressesInDB, formatStreetDisplay, type AddressSuggestion } from "@/lib/addressSearch";
+import { searchAddress, formatResult, type NominatimResult } from "@/lib/nominatim";
 
 interface AddressSearchProps {
   onSelect: (address: string) => void;
   onSearch: (address: string) => void;
 }
 
+interface CombinedResult {
+  type: "db" | "nominatim";
+  label: string;
+  sublabel: string;
+  searchValue: string;
+}
+
 export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<AddressSuggestion[]>([]);
+  const [results, setResults] = useState<CombinedResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -36,20 +44,50 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
     }
     setIsLoading(true);
     debounceRef.current = setTimeout(async () => {
-      const data = await searchAddressesInDB(query);
-      setResults(data);
-      setIsOpen(data.length > 0);
+      // Run both searches in parallel
+      const [dbResults, nominatimResults] = await Promise.all([
+        searchAddressesInDB(query).catch(() => [] as AddressSuggestion[]),
+        query.length >= 3 ? searchAddress(query).catch(() => [] as NominatimResult[]) : Promise.resolve([] as NominatimResult[]),
+      ]);
+
+      const combined: CombinedResult[] = [];
+
+      // DB results first (more precise, from real data)
+      for (const r of dbResults) {
+        combined.push({
+          type: "db",
+          label: formatStreetDisplay(r.street),
+          sublabel: `${r.count} registro(s) no banco de dados`,
+          searchValue: r.street,
+        });
+      }
+
+      // Nominatim results (broader coverage)
+      const seenLabels = new Set(combined.map(c => c.label.toUpperCase()));
+      for (const r of nominatimResults) {
+        const { primary, secondary, full } = formatResult(r);
+        if (!seenLabels.has(primary.toUpperCase())) {
+          combined.push({
+            type: "nominatim",
+            label: primary,
+            sublabel: secondary,
+            searchValue: full,
+          });
+          seenLabels.add(primary.toUpperCase());
+        }
+      }
+
+      setResults(combined.slice(0, 10));
+      setIsOpen(combined.length > 0);
       setIsLoading(false);
       setActiveIndex(-1);
     }, 300);
   }, [query]);
 
-  const handleSelect = (result: AddressSuggestion) => {
-    const display = formatStreetDisplay(result.street);
-    setQuery(display);
+  const handleSelect = (result: CombinedResult) => {
+    setQuery(result.label);
     setIsOpen(false);
-    // Use the raw street name for search (matches DB format)
-    onSelect(result.street);
+    onSelect(result.searchValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -63,7 +101,7 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
       e.preventDefault();
       if (activeIndex >= 0 && results[activeIndex]) {
         handleSelect(results[activeIndex]);
-      } else {
+      } else if (query.trim()) {
         setIsOpen(false);
         onSearch(query);
       }
@@ -93,24 +131,25 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
 
       {isOpen && results.length > 0 && (
         <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-card-xl overflow-hidden">
-          {results.map((result, i) => {
-            const display = formatStreetDisplay(result.street);
-            return (
-              <button
-                key={result.street}
-                onClick={() => handleSelect(result)}
-                className={`flex items-start gap-3 w-full px-4 py-3 text-left transition-colors ${
-                  i === activeIndex ? "bg-primary/10" : "hover:bg-muted"
-                }`}
-              >
-                <MapPin className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">{display}</p>
-                  <p className="text-xs text-muted-foreground">{result.count} registro(s) encontrado(s)</p>
-                </div>
-              </button>
-            );
-          })}
+          {results.map((result, i) => (
+            <button
+              key={`${result.type}-${result.label}-${i}`}
+              onClick={() => handleSelect(result)}
+              className={`flex items-start gap-3 w-full px-4 py-3 text-left transition-colors ${
+                i === activeIndex ? "bg-primary/10" : "hover:bg-muted"
+              }`}
+            >
+              {result.type === "db" ? (
+                <Database className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+              ) : (
+                <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+              )}
+              <div>
+                <p className="text-sm font-medium text-foreground">{result.label}</p>
+                <p className="text-xs text-muted-foreground">{result.sublabel}</p>
+              </div>
+            </button>
+          ))}
         </div>
       )}
     </div>
