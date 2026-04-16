@@ -84,6 +84,11 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
 export async function searchProperties(address: string): Promise<Property[]> {
   if (!address.trim()) return [];
 
+  // First try direct ilike search (works when address comes from DB autocomplete)
+  const directResults = await tryDirectSearch(address);
+  if (directResults.length > 0) return directResults;
+
+  // Fallback to keyword-based search
   const { keywords, number } = extractSearchTerms(address);
   const cachedResults = await fetchPropertiesFromDatabase(keywords, number);
 
@@ -97,6 +102,25 @@ export async function searchProperties(address: string): Promise<Property[]> {
 
   if (error) throw error;
   return Array.isArray(data?.properties) ? (data.properties as Property[]) : [];
+}
+
+async function tryDirectSearch(address: string): Promise<Property[]> {
+  const normalized = address
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[.,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const { data, error } = await supabase
+    .from("properties")
+    .select("*")
+    .ilike("address", `${normalized}%`)
+    .order("year", { ascending: false })
+    .limit(1000);
+
+  if (error || !data || data.length === 0) return [];
+  return data;
 }
 
 export async function saveEvaluation(evaluation: {
