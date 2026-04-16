@@ -60,20 +60,22 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
     });
   }
 
-  // If a specific number was provided, prioritize exact matches
+  // If a specific number was provided, sort exact matches to the top
   if (number && results.length > 0) {
-    const exactMatches = results.filter((p) => {
+    const isNumberMatch = (p: typeof results[0]) => {
       const addrUpper = p.address.toUpperCase();
       return addrUpper.includes(` ${number} `) ||
              addrUpper.includes(` ${number},`) ||
              addrUpper.endsWith(` ${number}`) ||
-             // Match number right after street name tokens
              new RegExp(`\\b${number}\\b`).test(addrUpper);
-    });
+    };
 
-    if (exactMatches.length > 0) {
-      return exactMatches;
-    }
+    // Sort: exact number matches first, then the rest
+    results.sort((a, b) => {
+      const aMatch = isNumberMatch(a) ? 0 : 1;
+      const bMatch = isNumberMatch(b) ? 0 : 1;
+      return aMatch - bMatch;
+    });
   }
 
   return results;
