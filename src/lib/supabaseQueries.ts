@@ -82,8 +82,8 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
 export async function searchProperties(address: string): Promise<Property[]> {
   if (!address.trim()) return [];
 
-  const { street, number } = extractSearchTerms(address);
-  const cachedResults = await fetchPropertiesFromDatabase(street, number);
+  const { keywords, number } = extractSearchTerms(address);
+  const cachedResults = await fetchPropertiesFromDatabase(keywords, number);
 
   if (cachedResults.length > 0) {
     return cachedResults;
