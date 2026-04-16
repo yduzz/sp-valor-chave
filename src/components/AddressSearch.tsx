@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, MapPin, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { searchAddress, formatResult, type NominatimResult } from "@/lib/nominatim";
+import { searchAddressesInDB, formatStreetDisplay, type AddressSuggestion } from "@/lib/addressSearch";
 
 interface AddressSearchProps {
   onSelect: (address: string) => void;
@@ -10,7 +10,7 @@ interface AddressSearchProps {
 
 export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<NominatimResult[]>([]);
+  const [results, setResults] = useState<AddressSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -29,26 +29,27 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.length < 3) {
+    if (query.length < 2) {
       setResults([]);
       setIsOpen(false);
       return;
     }
     setIsLoading(true);
     debounceRef.current = setTimeout(async () => {
-      const data = await searchAddress(query);
+      const data = await searchAddressesInDB(query);
       setResults(data);
       setIsOpen(data.length > 0);
       setIsLoading(false);
       setActiveIndex(-1);
-    }, 350);
+    }, 300);
   }, [query]);
 
-  const handleSelect = (result: NominatimResult) => {
-    const { full } = formatResult(result);
-    setQuery(full);
+  const handleSelect = (result: AddressSuggestion) => {
+    const display = formatStreetDisplay(result.street);
+    setQuery(display);
     setIsOpen(false);
-    onSelect(full);
+    // Use the raw street name for search (matches DB format)
+    onSelect(result.street);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -93,10 +94,10 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
       {isOpen && results.length > 0 && (
         <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-card-xl overflow-hidden">
           {results.map((result, i) => {
-            const { primary, secondary } = formatResult(result);
+            const display = formatStreetDisplay(result.street);
             return (
               <button
-                key={result.place_id}
+                key={result.street}
                 onClick={() => handleSelect(result)}
                 className={`flex items-start gap-3 w-full px-4 py-3 text-left transition-colors ${
                   i === activeIndex ? "bg-primary/10" : "hover:bg-muted"
@@ -104,8 +105,8 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
               >
                 <MapPin className="h-4 w-4 mt-0.5 text-primary shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-foreground">{primary}</p>
-                  <p className="text-xs text-muted-foreground">{secondary}</p>
+                  <p className="text-sm font-medium text-foreground">{display}</p>
+                  <p className="text-xs text-muted-foreground">{result.count} registro(s) encontrado(s)</p>
                 </div>
               </button>
             );

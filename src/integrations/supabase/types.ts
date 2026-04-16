@@ -112,7 +112,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_addresses: {
+        Args: { max_results?: number; search_term: string }
+        Returns: {
+          full_address: string
+          match_count: number
+          street_name: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
