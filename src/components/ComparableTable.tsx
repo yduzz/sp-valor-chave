@@ -48,9 +48,9 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              <th className="px-4 py-3 text-left font-display font-semibold text-muted-foreground w-12"></th>
               <th className="px-4 py-3 text-left font-display font-semibold text-muted-foreground">Endereço</th>
               <th className="px-4 py-3 text-left font-display font-semibold text-muted-foreground">Detalhes</th>
+              <th className="px-4 py-3 text-right font-display font-semibold text-muted-foreground">M²</th>
               <th className="px-4 py-3 text-right font-display font-semibold text-muted-foreground">Preço</th>
               <th className="px-4 py-3 text-right font-display font-semibold text-muted-foreground">R$/m²</th>
               <th className="px-4 py-3 text-center font-display font-semibold text-muted-foreground">Ano</th>
@@ -61,28 +61,21 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
               const isSelected = selected.includes(p.id);
               const floorInfo = extractFloorInfo(p.address);
               const typeLabel = formatPropertyType(p.type);
-              const areaLabel = p.area ? `${p.area}m²` : null;
 
-              const detailParts = [areaLabel, typeLabel, floorInfo].filter(Boolean);
+              const detailParts = [typeLabel, floorInfo].filter(Boolean);
               const locationParts = [p.neighborhood, p.fiscalZone ? `Zona ${p.fiscalZone}` : null].filter(Boolean);
+              const disabled = !isSelected && selected.length >= maxSelection;
 
               return (
                 <tr
                   key={p.id}
                   onClick={() => {
-                    if (isSelected || selected.length < maxSelection) onToggle(p.id);
+                    if (!disabled) onToggle(p.id);
                   }}
-                  className={`border-b border-border last:border-b-0 cursor-pointer transition-colors ${
-                    isSelected ? "bg-primary/5" : "hover:bg-muted/30"
-                  }`}
+                  className={`border-b border-border last:border-b-0 transition-colors ${
+                    disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                  } ${isSelected ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-muted/30"}`}
                 >
-                  <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => onToggle(p.id)}
-                      disabled={!isSelected && selected.length >= maxSelection}
-                    />
-                  </td>
                   <td className="px-4 py-4">
                     <p className="font-medium text-foreground leading-tight">{p.address}</p>
                     {locationParts.length > 0 && (
@@ -90,7 +83,10 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
                     )}
                   </td>
                   <td className="px-4 py-4">
-                    <p className="text-foreground">{detailParts.join(" | ")}</p>
+                    <p className="text-foreground">{detailParts.join(" · ")}</p>
+                  </td>
+                  <td className="px-4 py-4 text-right text-foreground whitespace-nowrap">
+                    {p.area ? `${p.area} m²` : "—"}
                   </td>
                   <td className="px-4 py-4 text-right font-semibold text-foreground whitespace-nowrap">
                     {formatCurrency(p.venalValue)}
