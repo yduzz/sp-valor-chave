@@ -1,5 +1,4 @@
 import { type PropertyData, formatCurrency } from "@/lib/mockData";
-import { Checkbox } from "@/components/ui/checkbox";
 
 interface ComparableTableProps {
   properties: PropertyData[];
