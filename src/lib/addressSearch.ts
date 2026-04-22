@@ -1,49 +1,49 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const ABBREVIATIONS: Record<string, string[]> = {
-  RUA: ["R", "RUA"],
-  R: ["R", "RUA"],
-  AVENIDA: ["AV", "AVENIDA"],
-  AV: ["AV", "AVENIDA"],
-  ALAMEDA: ["AL", "ALAMEDA"],
-  AL: ["AL", "ALAMEDA"],
-  TRAVESSA: ["TV", "TRAV", "TRAVESSA"],
-  TV: ["TV", "TRAV", "TRAVESSA"],
-  PRACA: ["PCA", "PRACA"],
-  PCA: ["PCA", "PRACA"],
-  DOUTOR: ["DR", "DOUTOR"],
-  DR: ["DR", "DOUTOR"],
-  PROFESSOR: ["PROF", "PROFESSOR"],
-  PROF: ["PROF", "PROFESSOR"],
-  SENADOR: ["SEN", "SENADOR"],
-  SEN: ["SEN", "SENADOR"],
-  PADRE: ["PE", "PADRE"],
-  PE: ["PE", "PADRE"],
-  SANTA: ["STA", "SANTA"],
-  STA: ["STA", "SANTA"],
-  SANTO: ["STO", "SANTO"],
-  STO: ["STO", "SANTO"],
-  GENERAL: ["GAL", "GENERAL"],
-  GAL: ["GAL", "GENERAL"],
-  CORONEL: ["CEL", "CORONEL"],
-  CEL: ["CEL", "CORONEL"],
-  MARECHAL: ["MAL", "MARECHAL"],
-  MAL: ["MAL", "MARECHAL"],
-  CARDEAL: ["CARD", "CARDEAL"],
-  CARD: ["CARD", "CARDEAL"],
-  PRESIDENTE: ["PRES", "PRESIDENTE"],
-  PRES: ["PRES", "PRESIDENTE"],
-  ENGENHEIRO: ["ENG", "ENGENHEIRO"],
-  ENG: ["ENG", "ENGENHEIRO"],
-  BARAO: ["BR", "BARAO"],
-  VISCONDE: ["VISC", "VISCONDE"],
-  LARGO: ["LG", "LARGO"],
-  LG: ["LG", "LARGO"],
-  ESTRADA: ["EST", "ESTRADA"],
-  EST: ["EST", "ESTRADA"],
-  RODOVIA: ["ROD", "RODOVIA"],
-  ROD: ["ROD", "RODOVIA"],
+// Map full word → abbreviation used in the city's database (and vice-versa).
+// When the user types "CARDEAL", we also search by "CARD"; when they type "R",
+// we also try "RUA". This is the key to matching abbreviated DB rows.
+const TOKEN_VARIANTS: Record<string, string[]> = {
+  RUA: ["RUA", "R"], R: ["R", "RUA"],
+  AVENIDA: ["AVENIDA", "AV"], AV: ["AV", "AVENIDA"],
+  ALAMEDA: ["ALAMEDA", "AL"], AL: ["AL", "ALAMEDA"],
+  TRAVESSA: ["TRAVESSA", "TV", "TRAV"], TV: ["TV", "TRAVESSA"], TRAV: ["TRAV", "TRAVESSA"],
+  PRACA: ["PRACA", "PCA"], PCA: ["PCA", "PRACA"],
+  LARGO: ["LARGO", "LG"], LG: ["LG", "LARGO"],
+  ESTRADA: ["ESTRADA", "EST"], EST: ["EST", "ESTRADA"],
+  RODOVIA: ["RODOVIA", "ROD"], ROD: ["ROD", "RODOVIA"],
+  DOUTOR: ["DOUTOR", "DR"], DR: ["DR", "DOUTOR"],
+  PROFESSOR: ["PROFESSOR", "PROF"], PROF: ["PROF", "PROFESSOR"],
+  SENADOR: ["SENADOR", "SEN"], SEN: ["SEN", "SENADOR"],
+  PADRE: ["PADRE", "PE"], PE: ["PE", "PADRE"],
+  SANTA: ["SANTA", "STA"], STA: ["STA", "SANTA"],
+  SANTO: ["SANTO", "STO"], STO: ["STO", "SANTO"],
+  GENERAL: ["GENERAL", "GAL"], GAL: ["GAL", "GENERAL"],
+  CORONEL: ["CORONEL", "CEL"], CEL: ["CEL", "CORONEL"],
+  MARECHAL: ["MARECHAL", "MAL"], MAL: ["MAL", "MARECHAL"],
+  CARDEAL: ["CARDEAL", "CARD"], CARD: ["CARD", "CARDEAL"],
+  PRESIDENTE: ["PRESIDENTE", "PRES"], PRES: ["PRES", "PRESIDENTE"],
+  ENGENHEIRO: ["ENGENHEIRO", "ENG"], ENG: ["ENG", "ENGENHEIRO"],
+  BARAO: ["BARAO", "BR"],
+  VISCONDE: ["VISCONDE", "VISC"], VISC: ["VISC", "VISCONDE"],
 };
+
+// Words to ignore when matching (neighborhoods, cities, generic markers).
+const STOP_WORDS = new Set([
+  "PINHEIROS", "PERDIZES", "ITAIM", "BIBI", "MOEMA", "JARDINS", "JARDIM",
+  "VILA", "MADALENA", "OLIMPIA", "PAULISTA", "BROOKLIN", "MORUMBI",
+  "CONSOLACAO", "LIBERDADE", "BELA", "SANTANA", "TATUAPE", "MOOCA",
+  "IPIRANGA", "SAUDE", "CAMPO", "BELO", "CENTRO", "REPUBLICA",
+  "HIGIENOPOLIS", "SUMARE", "LAPA", "BUTANTA", "PACAEMBU",
+  "SAO", "PAULO", "SP", "BRASIL", "BRAZIL",
+  "JD", "PQ", "PARQUE",
+]);
+
+// Generic street-type words; useful but not "distinctive" for filtering precision.
+const STREET_TYPES = new Set([
+  "RUA", "R", "AVENIDA", "AV", "ALAMEDA", "AL", "TRAVESSA", "TV", "TRAV",
+  "PRACA", "PCA", "LARGO", "LG", "ESTRADA", "EST", "RODOVIA", "ROD",
+]);
 
 export interface AddressSuggestion {
   street: string;
@@ -51,134 +51,98 @@ export interface AddressSuggestion {
   count: number;
 }
 
-/**
- * Build multiple search variants by expanding abbreviations.
- * E.g. "Rua Cardeal Arcoverde" → ["R CARD ARCOVERDE", "RUA CARDEAL ARCOVERDE", ...]
- */
-function buildSearchVariants(query: string): string[] {
-  const normalized = query
+function normalize(s: string): string {
+  return s
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
     .replace(/[.,]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
 
-  const words = normalized.split(" ");
-  
-  // Get all distinctive words (skip numbers at the end)
-  const numberMatch = normalized.match(/\s+(\d+[A-Za-z0-9/-]*)\s*$/);
-  const withoutNumber = normalized.replace(/\s+\d+[A-Za-z0-9/-]*\s*$/, "").trim();
-  const keyWords = withoutNumber.split(" ");
+/**
+ * Build the "or" filter string for PostgREST: each token expands to one or
+ * more variants (e.g. CARDEAL → "CARDEAL,CARD"). The full filter is an AND
+ * of (variant1 OR variant2 OR ...) per token, achieved by chaining .ilike
+ * calls — one per token — each with an OR-of-variants pattern.
+ */
+function tokensFromQuery(query: string): { tokens: string[]; numberSuffix: string | null } {
+  const norm = normalize(query);
+  const numMatch = norm.match(/\s+(\d+[A-Za-z0-9/-]*)\s*$/);
+  const numberSuffix = numMatch ? numMatch[1] : null;
+  const withoutNumber = norm.replace(/\s+\d+[A-Za-z0-9/-]*\s*$/, "").trim();
 
-  // Build variants: for each word that has abbreviation mappings, try all variants
-  const variants = new Set<string>();
+  const all = withoutNumber.split(" ").filter(w => w.length >= 2);
+  // Drop neighborhoods/cities and short noise.
+  const meaningful = all.filter(w => !STOP_WORDS.has(w));
+  // Prefer distinctive (non-street-type) tokens; fall back to all if none left.
+  const distinctive = meaningful.filter(w => !STREET_TYPES.has(w));
+  const tokens = distinctive.length > 0 ? distinctive : meaningful;
 
-  // Original as-is (without number for street search)
-  variants.add(withoutNumber);
+  return { tokens, numberSuffix };
+}
 
-  // Try abbreviation expansion: replace first word and known words
-  const expanded = keyWords.map(w => {
-    const abbr = ABBREVIATIONS[w];
-    return abbr ? abbr : [w];
-  });
+/**
+ * For each token, build one ILIKE pattern per variant and chain queries with
+ * AND semantics by intersecting the result sets in JS. This is the most
+ * permissive way to handle full↔abbreviated word mismatches.
+ */
+async function searchByTokens(tokens: string[]): Promise<{ address: string }[]> {
+  if (tokens.length === 0) return [];
 
-  // Generate combinations (limit to avoid explosion)
-  function combine(parts: string[][], idx: number, current: string[]): void {
-    if (idx === parts.length) {
-      variants.add(current.join(" "));
-      return;
-    }
-    for (const option of parts[idx]) {
-      if (variants.size > 10) return;
-      combine(parts, idx + 1, [...current, option]);
-    }
-  }
-  combine(expanded, 0, []);
+  // For each token, run a query matching ANY of its variants.
+  const perToken = await Promise.all(
+    tokens.slice(0, 4).map(async (token) => {
+      const variants = TOKEN_VARIANTS[token] ?? [token];
+      // Build one OR-filter: address.ilike.%V1%,address.ilike.%V2%,...
+      const orFilter = variants.map(v => `address.ilike.%${v}%`).join(",");
+      const { data } = await supabase
+        .from("properties")
+        .select("address")
+        .or(orFilter)
+        .limit(500);
+      return data ?? [];
+    })
+  );
 
-  return [...variants].filter(v => v.length >= 2);
+  if (perToken.length === 1) return perToken[0];
+
+  // Intersect by address string — every row must appear in every token result.
+  const sets = perToken.map(rows => new Set(rows.map(r => r.address)));
+  const smallest = perToken.reduce((min, cur) => (cur.length < min.length ? cur : min), perToken[0]);
+  return smallest.filter(r => sets.every(s => s.has(r.address)));
 }
 
 export async function searchAddressesInDB(query: string): Promise<AddressSuggestion[]> {
   if (query.trim().length < 2) return [];
 
-  // Detect if user typed a number at the end (e.g. "Rua Augusta 500")
   const userTypedNumber = /\s+\d+[A-Za-z0-9/-]*\s*$/.test(query.trim());
+  const { tokens } = tokensFromQuery(query);
+  if (tokens.length === 0) return [];
 
-  // Common neighborhood/city words to drop when matching addresses
-  const STOP_WORDS = new Set([
-    "PINHEIROS", "PERDIZES", "ITAIM", "BIBI", "MOEMA", "JARDINS", "JARDIM",
-    "VILA", "MADALENA", "OLIMPIA", "PAULISTA", "BROOKLIN", "MORUMBI",
-    "CONSOLACAO", "LIBERDADE", "BELA", "SANTANA", "TATUAPE", "MOOCA",
-    "IPIRANGA", "SAUDE", "CAMPO", "BELO", "CENTRO", "REPUBLICA",
-    "HIGIENOPOLIS", "SUMARE", "LAPA", "BUTANTA", "PACAEMBU",
-    "SAO", "PAULO", "SP", "BRASIL",
-  ]);
+  const rows = await searchByTokens(tokens);
 
-  const variants = buildSearchVariants(query);
-
-  // Also build a "core" variant: drop stop words (neighborhoods/city)
-  const coreVariants = variants.map(v => {
-    const filtered = v.split(" ").filter(w => !STOP_WORDS.has(w));
-    return filtered.join(" ").trim();
-  }).filter(v => v.length >= 2);
-
-  // Build a key-words variant using ILIKE wildcards between words
-  // e.g. "RUA CARDEAL ARCOVERDE" → "%CARDEAL%ARCOVERDE%"
-  const keyWordPatterns = new Set<string>();
-  for (const v of [...variants, ...coreVariants]) {
-    const words = v.split(" ").filter(w => w.length >= 3 && !["RUA","R","AVENIDA","AV","ALAMEDA","AL","TRAVESSA","TV","PRACA","PCA","ESTRADA","EST","RODOVIA","ROD","LARGO","LG"].includes(w));
-    if (words.length >= 1) {
-      keyWordPatterns.add("%" + words.join("%") + "%");
-    }
-  }
-
-  const allPatterns = [
-    ...new Set([
-      ...variants.slice(0, 3).map(v => `%${v}%`),
-      ...coreVariants.slice(0, 2).map(v => `%${v}%`),
-      ...[...keyWordPatterns].slice(0, 3),
-    ]),
-  ];
-
-  // Run queries in parallel
-  const promises = allPatterns.slice(0, 6).map(pattern =>
-    supabase
-      .from("properties")
-      .select("address")
-      .ilike("address", pattern)
-      .limit(200)
-  );
-
-  const results = await Promise.all(promises);
-
-  // Merge addresses; if user did NOT type a number, group by street name only
+  // Group by street (or full address if user typed a number).
   const grouped = new Map<string, { street: string; count: number; example: string }>();
-
-  for (const { data } of results) {
-    if (!data) continue;
-    for (const row of data) {
-      const cleaned = stripUnitDetails(row.address);
-      const key = userTypedNumber ? cleaned : stripStreetNumber(cleaned);
-      if (!grouped.has(key)) {
-        grouped.set(key, { street: key, count: 0, example: row.address });
-      }
-      grouped.get(key)!.count++;
+  for (const row of rows) {
+    const cleaned = stripUnitDetails(row.address);
+    const key = userTypedNumber ? cleaned : stripStreetNumber(cleaned);
+    if (!grouped.has(key)) {
+      grouped.set(key, { street: key, count: 0, example: row.address });
     }
+    grouped.get(key)!.count++;
   }
 
-  // Sort by count descending and return top results
   return [...grouped.values()]
     .sort((a, b) => b.count - a.count)
     .slice(0, 8);
 }
 
-/**
- * Remove unit/apartment details from an address (AP, CJ, CASA, etc.).
- */
+/** Remove unit/apartment details from an address (AP, CJ, CASA, etc.). */
 function stripUnitDetails(address: string): string {
   return address
-    .replace(/\s+(AP|APTO|APT|CJ|CASA|SALA|CONJ|BL|BLOCO|LJ|LOJA|SL|CS|LOTE)\s+.*/i, "")
+    .replace(/\s+(AP|APTO|APT|CJ|CASA|SALA|CONJ|BL|BLOCO|LJ|LOJA|SL|CS|LOTE|UNID|UNIDADE|G|VG|BOX|FLAT|STUDIO)\s+.*/i, "")
     .replace(/\s+\d+\.\d+$/, "")
     .trim();
 }
@@ -186,7 +150,6 @@ function stripUnitDetails(address: string): string {
 /**
  * Remove the trailing street number from a cleaned address.
  * "RUA CARDEAL ARCOVERDE 1070" → "RUA CARDEAL ARCOVERDE"
- * "RUA X 1980 A 2004" → "RUA X"
  */
 function stripStreetNumber(address: string): string {
   return address
@@ -195,9 +158,7 @@ function stripStreetNumber(address: string): string {
     .trim();
 }
 
-/**
- * Format a street name for display: capitalize properly
- */
+/** Format a street name for display: capitalize properly */
 export function formatStreetDisplay(street: string): string {
   const EXPAND: Record<string, string> = {
     R: "Rua", AV: "Avenida", AL: "Alameda", TV: "Travessa",
@@ -214,7 +175,6 @@ export function formatStreetDisplay(street: string): string {
       const upper = w.toUpperCase();
       if (i === 0 && EXPAND[upper]) return EXPAND[upper];
       if (EXPAND[upper]) return EXPAND[upper];
-      // Capitalize first letter
       return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
     })
     .join(" ");
