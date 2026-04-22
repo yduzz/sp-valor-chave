@@ -32,12 +32,20 @@ export function formatResult(result: NominatimResult): { primary: string; second
 export async function searchAddress(query: string): Promise<NominatimResult[]> {
   if (query.length < 3) return [];
 
+  // Append "São Paulo" if user hasn't already mentioned a city/state
+  const lower = query.toLowerCase();
+  const hasCity = /são paulo|sao paulo|\bsp\b/i.test(lower);
+  const augmentedQuery = hasCity ? query : `${query}, São Paulo, SP`;
+
   const params = new URLSearchParams({
-    q: query,
+    q: augmentedQuery,
     format: "json",
     addressdetails: "1",
-    limit: "8",
+    limit: "10",
     countrycodes: "br",
+    // Bounding box for São Paulo metro area (left, top, right, bottom)
+    viewbox: "-46.826,-23.357,-46.365,-23.795",
+    bounded: "1",
   });
 
   const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
@@ -47,13 +55,12 @@ export async function searchAddress(query: string): Promise<NominatimResult[]> {
   if (!response.ok) return [];
   const data: NominatimResult[] = await response.json();
 
-  // Prioritize São Paulo results
+  // Prioritize results that have a road (street-level precision) and are in São Paulo city
   return data.sort((a, b) => {
-    const aIsSP = (a.address.city === "São Paulo" || a.address.state === "São Paulo") ? 0 : 1;
-    const bIsSP = (b.address.city === "São Paulo" || b.address.state === "São Paulo") ? 0 : 1;
-    // Within SP, prioritize city matches over state-only matches
+    const aHasRoad = a.address.road ? 0 : 1;
+    const bHasRoad = b.address.road ? 0 : 1;
     const aIsCity = a.address.city === "São Paulo" ? 0 : 1;
     const bIsCity = b.address.city === "São Paulo" ? 0 : 1;
-    return aIsSP - bIsSP || aIsCity - bIsCity;
+    return aHasRoad - bHasRoad || aIsCity - bIsCity;
   });
 }
