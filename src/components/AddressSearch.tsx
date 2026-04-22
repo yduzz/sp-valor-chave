@@ -57,7 +57,7 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
         combined.push({
           type: "db",
           label: formatStreetDisplay(r.street),
-          sublabel: `${r.count} registro(s) no banco de dados`,
+          sublabel: "São Paulo, SP",
           searchValue: r.street,
         });
       }

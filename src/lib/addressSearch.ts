@@ -102,8 +102,11 @@ function buildSearchVariants(query: string): string[] {
 export async function searchAddressesInDB(query: string): Promise<AddressSuggestion[]> {
   if (query.trim().length < 2) return [];
 
+  // Detect if user typed a number at the end (e.g. "Rua Augusta 500")
+  const userTypedNumber = /\s+\d+[A-Za-z0-9/-]*\s*$/.test(query.trim());
+
   const variants = buildSearchVariants(query);
-  
+
   // Run queries for all variants in parallel
   const promises = variants.slice(0, 4).map(variant =>
     supabase
@@ -115,36 +118,46 @@ export async function searchAddressesInDB(query: string): Promise<AddressSuggest
 
   const results = await Promise.all(promises);
 
-  // Merge all addresses
-  const allAddresses = new Map<string, { street: string; count: number; example: string }>();
-  
+  // Merge addresses; if user did NOT type a number, group by street name only
+  const grouped = new Map<string, { street: string; count: number; example: string }>();
+
   for (const { data } of results) {
     if (!data) continue;
     for (const row of data) {
-      // Extract street name (without apartment/unit details)
-      const street = extractStreetName(row.address);
-      if (!allAddresses.has(street)) {
-        allAddresses.set(street, { street, count: 0, example: row.address });
+      const cleaned = stripUnitDetails(row.address);
+      const key = userTypedNumber ? cleaned : stripStreetNumber(cleaned);
+      if (!grouped.has(key)) {
+        grouped.set(key, { street: key, count: 0, example: row.address });
       }
-      allAddresses.get(street)!.count++;
+      grouped.get(key)!.count++;
     }
   }
 
   // Sort by count descending and return top results
-  return [...allAddresses.values()]
+  return [...grouped.values()]
     .sort((a, b) => b.count - a.count)
     .slice(0, 8);
 }
 
 /**
- * Extract the base street + number from a full address,
- * removing apartment/unit details like "AP 11 E VG", "CJ 01", "CASA 5" etc.
+ * Remove unit/apartment details from an address (AP, CJ, CASA, etc.).
  */
-function extractStreetName(address: string): string {
-  // Remove unit details: AP, CJ, CASA, SALA, CONJ, BL, BLOCO, LJ, LOJA, SL, CS, lote
+function stripUnitDetails(address: string): string {
   return address
-    .replace(/\s+(AP|CJ|CASA|SALA|CONJ|BL|BLOCO|LJ|LOJA|SL|CS|LOTE)\s+.*/i, "")
-    .replace(/\s+\d+\.\d+$/, "") // remove trailing decimal numbers like "1001.0"
+    .replace(/\s+(AP|APTO|APT|CJ|CASA|SALA|CONJ|BL|BLOCO|LJ|LOJA|SL|CS|LOTE)\s+.*/i, "")
+    .replace(/\s+\d+\.\d+$/, "")
+    .trim();
+}
+
+/**
+ * Remove the trailing street number from a cleaned address.
+ * "RUA CARDEAL ARCOVERDE 1070" → "RUA CARDEAL ARCOVERDE"
+ * "RUA X 1980 A 2004" → "RUA X"
+ */
+function stripStreetNumber(address: string): string {
+  return address
+    .replace(/\s+\d+(\s*[A-Z]?\s+A\s+\d+)?\s*$/i, "")
+    .replace(/\s+\d+[A-Za-z0-9/-]*\s*$/, "")
     .trim();
 }
 
