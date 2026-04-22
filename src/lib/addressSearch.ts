@@ -105,14 +105,48 @@ export async function searchAddressesInDB(query: string): Promise<AddressSuggest
   // Detect if user typed a number at the end (e.g. "Rua Augusta 500")
   const userTypedNumber = /\s+\d+[A-Za-z0-9/-]*\s*$/.test(query.trim());
 
+  // Common neighborhood/city words to drop when matching addresses
+  const STOP_WORDS = new Set([
+    "PINHEIROS", "PERDIZES", "ITAIM", "BIBI", "MOEMA", "JARDINS", "JARDIM",
+    "VILA", "MADALENA", "OLIMPIA", "PAULISTA", "BROOKLIN", "MORUMBI",
+    "CONSOLACAO", "LIBERDADE", "BELA", "SANTANA", "TATUAPE", "MOOCA",
+    "IPIRANGA", "SAUDE", "CAMPO", "BELO", "CENTRO", "REPUBLICA",
+    "HIGIENOPOLIS", "SUMARE", "LAPA", "BUTANTA", "PACAEMBU",
+    "SAO", "PAULO", "SP", "BRASIL",
+  ]);
+
   const variants = buildSearchVariants(query);
 
-  // Run queries for all variants in parallel
-  const promises = variants.slice(0, 4).map(variant =>
+  // Also build a "core" variant: drop stop words (neighborhoods/city)
+  const coreVariants = variants.map(v => {
+    const filtered = v.split(" ").filter(w => !STOP_WORDS.has(w));
+    return filtered.join(" ").trim();
+  }).filter(v => v.length >= 2);
+
+  // Build a key-words variant using ILIKE wildcards between words
+  // e.g. "RUA CARDEAL ARCOVERDE" → "%CARDEAL%ARCOVERDE%"
+  const keyWordPatterns = new Set<string>();
+  for (const v of [...variants, ...coreVariants]) {
+    const words = v.split(" ").filter(w => w.length >= 3 && !["RUA","R","AVENIDA","AV","ALAMEDA","AL","TRAVESSA","TV","PRACA","PCA","ESTRADA","EST","RODOVIA","ROD","LARGO","LG"].includes(w));
+    if (words.length >= 1) {
+      keyWordPatterns.add("%" + words.join("%") + "%");
+    }
+  }
+
+  const allPatterns = [
+    ...new Set([
+      ...variants.slice(0, 3).map(v => `%${v}%`),
+      ...coreVariants.slice(0, 2).map(v => `%${v}%`),
+      ...[...keyWordPatterns].slice(0, 3),
+    ]),
+  ];
+
+  // Run queries in parallel
+  const promises = allPatterns.slice(0, 6).map(pattern =>
     supabase
       .from("properties")
       .select("address")
-      .ilike("address", `%${variant}%`)
+      .ilike("address", pattern)
       .limit(200)
   );
 
