@@ -4,6 +4,8 @@ import { searchProperties, saveEvaluation, type Property } from "@/lib/supabaseQ
 import { calculatePricing, formatCurrency } from "@/lib/mockData";
 import ComparableTable from "@/components/ComparableTable";
 import PricingResult from "@/components/PricingResult";
+import MarketValuationCard from "@/components/MarketValuationCard";
+import { aggregateMarketValuation, type MarketValuationResult } from "@/lib/marketValuation";
 import AddressSearch from "@/components/AddressSearch";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,7 @@ export default function ResultPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [showResult, setShowResult] = useState(false);
   const [pricing, setPricing] = useState<ReturnType<typeof calculatePricing> | null>(null);
+  const [marketValuation, setMarketValuation] = useState<MarketValuationResult | null>(null);
 
   useEffect(() => {
     if (!query) return;
@@ -57,6 +60,19 @@ export default function ResultPage() {
 
     const result = calculatePricing(mapped);
     setPricing(result);
+
+    // Camada de validação cruzada FipeZAP + CRECI + IBRESP
+    const valuation = aggregateMarketValuation(
+      mapped
+        .filter((m) => m.area > 0 && m.pricePerSqm > 0)
+        .map((m) => ({
+          area: m.area,
+          pricePerSqmBase: m.pricePerSqm,
+          baseYear: m.year,
+          neighborhood: m.neighborhood,
+        })),
+    );
+    setMarketValuation(valuation);
     setShowResult(true);
 
     // Save evaluation to history
@@ -134,6 +150,7 @@ export default function ResultPage() {
         )}
 
         {showResult && pricing && <PricingResult sale={pricing.sale} perSqm={pricing.perSqm} rent={pricing.rent} />}
+        {showResult && marketValuation && <MarketValuationCard valuation={marketValuation} />}
       </div>
     </div>
   );
