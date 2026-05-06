@@ -142,11 +142,6 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
                 i === activeIndex ? "bg-primary/10" : "hover:bg-muted"
               }`}
             >
-              {result.type === "db" ? (
-                <Database className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-              ) : (
-                <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-              )}
               <div>
                 <p className="text-sm font-medium text-foreground">{result.label}</p>
                 <p className="text-xs text-muted-foreground">{result.sublabel}</p>
