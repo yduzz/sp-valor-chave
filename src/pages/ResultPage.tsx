@@ -5,7 +5,9 @@ import { calculatePricing, formatCurrency } from "@/lib/mockData";
 import ComparableTable from "@/components/ComparableTable";
 import PricingResult from "@/components/PricingResult";
 import MarketValuationCard from "@/components/MarketValuationCard";
+import RefinedPricingCard from "@/components/RefinedPricingCard";
 import { aggregateMarketValuation, type MarketValuationResult } from "@/lib/marketValuation";
+import { refinePricing, type RefinedPricing } from "@/lib/refinedPricing";
 import AddressSearch from "@/components/AddressSearch";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,7 @@ export default function ResultPage() {
   const [showResult, setShowResult] = useState(false);
   const [pricing, setPricing] = useState<ReturnType<typeof calculatePricing> | null>(null);
   const [marketValuation, setMarketValuation] = useState<MarketValuationResult | null>(null);
+  const [refined, setRefined] = useState<RefinedPricing | null>(null);
 
   useEffect(() => {
     if (!query) return;
@@ -73,6 +76,11 @@ export default function ResultPage() {
         })),
     );
     setMarketValuation(valuation);
+
+    // Camada de refinamento e apresentação (não altera o cálculo original)
+    const primaryNeighborhood = selectedProps[0]?.neighborhood || "";
+    setRefined(refinePricing(result, primaryNeighborhood));
+
     setShowResult(true);
 
     // Save evaluation to history
@@ -150,6 +158,7 @@ export default function ResultPage() {
         )}
 
         {showResult && pricing && <PricingResult sale={pricing.sale} perSqm={pricing.perSqm} rent={pricing.rent} />}
+        {showResult && refined && <RefinedPricingCard refined={refined} />}
         {showResult && marketValuation && <MarketValuationCard valuation={marketValuation} />}
       </div>
     </div>
