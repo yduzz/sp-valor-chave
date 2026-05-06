@@ -139,7 +139,7 @@ export async function searchAddressesInDB(query: string): Promise<AddressSuggest
 /** Remove unit/apartment details from an address (AP, CJ, CASA, etc.). */
 function stripUnitDetails(address: string): string {
   return address
-    .replace(/\s+(AP|APTO|APT|CJ|CASA|SALA|CONJ|BL|BLOCO|LJ|LOJA|SL|CS|LOTE|UNID|UNIDADE|G|VG|BOX|FLAT|STUDIO)\s+.*/i, "")
+    .replace(/\s+(AP|APTO|APT|CJ|CASA|SALA|CONJ|BL|BLOCO|LJ|LOJA|SL|CS|LOTE|UNID|UNIDADE|VG|BOX|FLAT|STUDIO|N°|Nº|N\.?)\.?\s*.*/i, "")
     .replace(/\s+\d+\.\d+$/, "")
     .trim();
 }
