@@ -1,6 +1,7 @@
 import { formatCurrency } from "@/lib/mockData";
 import type { RefinedPricing } from "@/lib/refinedPricing";
 import { Info } from "lucide-react";
+import type { ReactNode } from "react";
 
 interface Props {
   refined: RefinedPricing;
@@ -11,7 +12,7 @@ function Row({
   range,
   suffix,
 }: {
-  label: string;
+  label: ReactNode;
   range: { min: number; avg: number; max: number };
   suffix?: string;
 }) {
@@ -47,6 +48,13 @@ function Row({
 }
 
 export default function RefinedPricingCard({ refined }: Props) {
+  const ratio = refined.sale.avg > 0 ? refined.sale.avg / refined.perSqm.avg : 1;
+  const rentPerSqm = {
+    min: Math.round(refined.rent.min / Math.max(1, ratio)),
+    avg: Math.round(refined.rent.avg / Math.max(1, ratio)),
+    max: Math.round(refined.rent.max / Math.max(1, ratio)),
+  };
+
   return (
     <div className="bg-card rounded-xl border border-border p-6 shadow-card-lg animate-fade-in">
       <h3 className="font-display text-lg font-semibold text-center text-foreground mb-2">
@@ -54,32 +62,18 @@ export default function RefinedPricingCard({ refined }: Props) {
       </h3>
 
       <Row
-        label={
-          <>
-            Valor estimado para <strong>VENDA</strong> é de:
-          </>
-            as unknown as string
-        }
+        label={<>Valor estimado para <strong>VENDA</strong> é de:</>}
         range={refined.sale}
       />
       <div className="border-t border-border" />
-      <Row label={"Valor estimado por M² é de:"} range={refined.perSqm} suffix="/m²" />
+      <Row label="Valor estimado por M² é de:" range={refined.perSqm} suffix="/m²" />
       <div className="border-t border-border" />
       <Row
-        label={
-          <>
-            Valor estimado para <strong>LOCAÇÃO</strong> é de:
-          </>
-            as unknown as string
-        }
+        label={<>Valor estimado para <strong>LOCAÇÃO</strong> é de:</>}
         range={refined.rent}
       />
       <div className="border-t border-border" />
-      <Row label={"Valor estimado por M² é de:"} range={{
-        min: Math.round(refined.rent.min / Math.max(1, refined.sale.avg / refined.perSqm.avg)),
-        avg: Math.round(refined.rent.avg / Math.max(1, refined.sale.avg / refined.perSqm.avg)),
-        max: Math.round(refined.rent.max / Math.max(1, refined.sale.avg / refined.perSqm.avg)),
-      }} suffix="/m²" />
+      <Row label="Valor estimado por M² é de:" range={rentPerSqm} suffix="/m²" />
 
       <div className="flex items-start gap-2 bg-muted/40 rounded-lg p-3 mt-4">
         <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
