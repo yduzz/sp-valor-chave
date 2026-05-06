@@ -89,18 +89,16 @@ function tokensFromQuery(query: string): { tokens: string[]; numberSuffix: strin
  * AND semantics by intersecting the result sets in JS. This is the most
  * permissive way to handle full↔abbreviated word mismatches.
  */
-async function searchByTokens(tokens: string[]): Promise<{ address: string }[]> {
+async function searchByTokens(tokens: string[]): Promise<{ address: string; neighborhood: string | null }[]> {
   if (tokens.length === 0) return [];
 
-  // For each token, run a query matching ANY of its variants.
   const perToken = await Promise.all(
     tokens.slice(0, 4).map(async (token) => {
       const variants = TOKEN_VARIANTS[token] ?? [token];
-      // Build one OR-filter: address.ilike.%V1%,address.ilike.%V2%,...
       const orFilter = variants.map(v => `address.ilike.%${v}%`).join(",");
       const { data } = await supabase
         .from("properties")
-        .select("address")
+        .select("address, neighborhood")
         .or(orFilter)
         .limit(500);
       return data ?? [];
@@ -109,7 +107,6 @@ async function searchByTokens(tokens: string[]): Promise<{ address: string }[]> 
 
   if (perToken.length === 1) return perToken[0];
 
-  // Intersect by address string — every row must appear in every token result.
   const sets = perToken.map(rows => new Set(rows.map(r => r.address)));
   const smallest = perToken.reduce((min, cur) => (cur.length < min.length ? cur : min), perToken[0]);
   return smallest.filter(r => sets.every(s => s.has(r.address)));
@@ -124,13 +121,12 @@ export async function searchAddressesInDB(query: string): Promise<AddressSuggest
 
   const rows = await searchByTokens(tokens);
 
-  // Group by street (or full address if user typed a number).
-  const grouped = new Map<string, { street: string; count: number; example: string }>();
+  const grouped = new Map<string, { street: string; count: number; example: string; neighborhood: string | null }>();
   for (const row of rows) {
     const cleaned = stripUnitDetails(row.address);
     const key = userTypedNumber ? cleaned : stripStreetNumber(cleaned);
     if (!grouped.has(key)) {
-      grouped.set(key, { street: key, count: 0, example: row.address });
+      grouped.set(key, { street: key, count: 0, example: row.address, neighborhood: row.neighborhood });
     }
     grouped.get(key)!.count++;
   }
