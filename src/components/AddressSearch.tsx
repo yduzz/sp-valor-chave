@@ -54,10 +54,11 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
 
       // DB results first (more precise, from real data)
       for (const r of dbResults) {
+        const hood = r.neighborhood ? formatStreetDisplay(r.neighborhood) : "";
         combined.push({
           type: "db",
           label: formatStreetDisplay(r.street),
-          sublabel: "São Paulo, SP",
+          sublabel: [hood, "São Paulo", "SP"].filter(Boolean).join(", "),
           searchValue: r.street,
         });
       }
