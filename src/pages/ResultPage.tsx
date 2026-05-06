@@ -60,6 +60,19 @@ export default function ResultPage() {
 
     const result = calculatePricing(mapped);
     setPricing(result);
+
+    // Camada de validação cruzada FipeZAP + CRECI + IBRESP
+    const valuation = aggregateMarketValuation(
+      mapped
+        .filter((m) => m.area > 0 && m.pricePerSqm > 0)
+        .map((m) => ({
+          area: m.area,
+          pricePerSqmBase: m.pricePerSqm,
+          baseYear: m.year,
+          neighborhood: m.neighborhood,
+        })),
+    );
+    setMarketValuation(valuation);
     setShowResult(true);
 
     // Save evaluation to history
