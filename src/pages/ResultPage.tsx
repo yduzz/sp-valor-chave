@@ -150,6 +150,7 @@ export default function ResultPage() {
         )}
 
         {showResult && pricing && <PricingResult sale={pricing.sale} perSqm={pricing.perSqm} rent={pricing.rent} />}
+        {showResult && marketValuation && <MarketValuationCard valuation={marketValuation} />}
       </div>
     </div>
   );
