@@ -25,6 +25,7 @@ export default function ResultPage() {
   const [showResult, setShowResult] = useState(false);
   const [pricing, setPricing] = useState<ReturnType<typeof calculatePricing> | null>(null);
   const [marketValuation, setMarketValuation] = useState<MarketValuationResult | null>(null);
+  const [refined, setRefined] = useState<RefinedPricing | null>(null);
 
   useEffect(() => {
     if (!query) return;
