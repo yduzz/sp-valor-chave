@@ -49,6 +49,7 @@ export interface AddressSuggestion {
   street: string;
   example: string;
   count: number;
+  neighborhood?: string | null;
 }
 
 function normalize(s: string): string {
@@ -88,18 +89,16 @@ function tokensFromQuery(query: string): { tokens: string[]; numberSuffix: strin
  * AND semantics by intersecting the result sets in JS. This is the most
  * permissive way to handle full↔abbreviated word mismatches.
  */
-async function searchByTokens(tokens: string[]): Promise<{ address: string }[]> {
+async function searchByTokens(tokens: string[]): Promise<{ address: string; neighborhood: string | null }[]> {
   if (tokens.length === 0) return [];
 
-  // For each token, run a query matching ANY of its variants.
   const perToken = await Promise.all(
     tokens.slice(0, 4).map(async (token) => {
       const variants = TOKEN_VARIANTS[token] ?? [token];
-      // Build one OR-filter: address.ilike.%V1%,address.ilike.%V2%,...
       const orFilter = variants.map(v => `address.ilike.%${v}%`).join(",");
       const { data } = await supabase
         .from("properties")
-        .select("address")
+        .select("address, neighborhood")
         .or(orFilter)
         .limit(500);
       return data ?? [];
@@ -108,7 +107,6 @@ async function searchByTokens(tokens: string[]): Promise<{ address: string }[]> 
 
   if (perToken.length === 1) return perToken[0];
 
-  // Intersect by address string — every row must appear in every token result.
   const sets = perToken.map(rows => new Set(rows.map(r => r.address)));
   const smallest = perToken.reduce((min, cur) => (cur.length < min.length ? cur : min), perToken[0]);
   return smallest.filter(r => sets.every(s => s.has(r.address)));
@@ -123,13 +121,12 @@ export async function searchAddressesInDB(query: string): Promise<AddressSuggest
 
   const rows = await searchByTokens(tokens);
 
-  // Group by street (or full address if user typed a number).
-  const grouped = new Map<string, { street: string; count: number; example: string }>();
+  const grouped = new Map<string, { street: string; count: number; example: string; neighborhood: string | null }>();
   for (const row of rows) {
     const cleaned = stripUnitDetails(row.address);
     const key = userTypedNumber ? cleaned : stripStreetNumber(cleaned);
     if (!grouped.has(key)) {
-      grouped.set(key, { street: key, count: 0, example: row.address });
+      grouped.set(key, { street: key, count: 0, example: row.address, neighborhood: row.neighborhood });
     }
     grouped.get(key)!.count++;
   }
@@ -158,24 +155,49 @@ function stripStreetNumber(address: string): string {
     .trim();
 }
 
-/** Format a street name for display: capitalize properly */
+/** Format a street name for display: expand abbreviations and capitalize properly. */
 export function formatStreetDisplay(street: string): string {
   const EXPAND: Record<string, string> = {
-    R: "Rua", AV: "Avenida", AL: "Alameda", TV: "Travessa",
-    TRAV: "Travessa", PCA: "Praça", DR: "Dr.", PROF: "Prof.",
-    SEN: "Sen.", PE: "Pe.", STA: "Santa", STO: "Santo",
-    GAL: "Gen.", CEL: "Cel.", MAL: "Mal.", CARD: "Cardeal",
-    PRES: "Pres.", ENG: "Eng.", LG: "Largo", EST: "Estrada",
-    ROD: "Rodovia", BR: "Barão", VISC: "Visconde",
+    R: "Rua", RUA: "Rua",
+    AV: "Avenida", AVENIDA: "Avenida",
+    AL: "Alameda", ALAMEDA: "Alameda",
+    TV: "Travessa", TRAV: "Travessa", TRAVESSA: "Travessa",
+    PCA: "Praça", PRACA: "Praça",
+    LG: "Largo", LARGO: "Largo",
+    EST: "Estrada", ESTRADA: "Estrada",
+    ROD: "Rodovia", RODOVIA: "Rodovia",
+    DR: "Dr.", DOUTOR: "Dr.", DRA: "Dra.", DOUTORA: "Dra.",
+    PROF: "Prof.", PROFESSOR: "Prof.", PROFA: "Profa.",
+    SEN: "Senador", SENADOR: "Senador",
+    PE: "Padre", PADRE: "Padre",
+    STA: "Santa", SANTA: "Santa",
+    STO: "Santo", SANTO: "Santo",
+    GAL: "General", GENERAL: "General",
+    CEL: "Coronel", CORONEL: "Coronel",
+    MAL: "Marechal", MARECHAL: "Marechal",
+    CARD: "Cardeal", CARDEAL: "Cardeal",
+    PRES: "Presidente", PRESIDENTE: "Presidente",
+    ENG: "Engenheiro", ENGENHEIRO: "Engenheiro",
+    BR: "Barão", BARAO: "Barão",
+    VISC: "Visconde", VISCONDE: "Visconde",
+    CONDE: "Conde", DUQUE: "Duque", DOM: "Dom",
+    SAO: "São", STA_: "Santa",
+    JD: "Jardim", JARDIM: "Jardim",
+    PQ: "Parque", PARQUE: "Parque",
+    VL: "Vila", VILA: "Vila",
   };
+  // Connector words stay lowercase.
+  const LOWER = new Set(["DE", "DA", "DO", "DAS", "DOS", "E"]);
 
   return street
-    .split(" ")
+    .split(/\s+/)
     .map((w, i) => {
       const upper = w.toUpperCase();
-      if (i === 0 && EXPAND[upper]) return EXPAND[upper];
       if (EXPAND[upper]) return EXPAND[upper];
+      if (i > 0 && LOWER.has(upper)) return upper.toLowerCase();
+      if (/^\d/.test(w)) return w; // keep numbers as-is
       return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
     })
     .join(" ");
 }
+
