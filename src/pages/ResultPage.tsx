@@ -76,6 +76,11 @@ export default function ResultPage() {
         })),
     );
     setMarketValuation(valuation);
+
+    // Camada de refinamento e apresentação (não altera o cálculo original)
+    const primaryNeighborhood = selectedProps[0]?.neighborhood || "";
+    setRefined(refinePricing(result, primaryNeighborhood));
+
     setShowResult(true);
 
     // Save evaluation to history
