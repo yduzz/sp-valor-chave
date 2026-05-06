@@ -155,24 +155,49 @@ function stripStreetNumber(address: string): string {
     .trim();
 }
 
-/** Format a street name for display: capitalize properly */
+/** Format a street name for display: expand abbreviations and capitalize properly. */
 export function formatStreetDisplay(street: string): string {
   const EXPAND: Record<string, string> = {
-    R: "Rua", AV: "Avenida", AL: "Alameda", TV: "Travessa",
-    TRAV: "Travessa", PCA: "Praça", DR: "Dr.", PROF: "Prof.",
-    SEN: "Sen.", PE: "Pe.", STA: "Santa", STO: "Santo",
-    GAL: "Gen.", CEL: "Cel.", MAL: "Mal.", CARD: "Cardeal",
-    PRES: "Pres.", ENG: "Eng.", LG: "Largo", EST: "Estrada",
-    ROD: "Rodovia", BR: "Barão", VISC: "Visconde",
+    R: "Rua", RUA: "Rua",
+    AV: "Avenida", AVENIDA: "Avenida",
+    AL: "Alameda", ALAMEDA: "Alameda",
+    TV: "Travessa", TRAV: "Travessa", TRAVESSA: "Travessa",
+    PCA: "Praça", PRACA: "Praça",
+    LG: "Largo", LARGO: "Largo",
+    EST: "Estrada", ESTRADA: "Estrada",
+    ROD: "Rodovia", RODOVIA: "Rodovia",
+    DR: "Dr.", DOUTOR: "Dr.", DRA: "Dra.", DOUTORA: "Dra.",
+    PROF: "Prof.", PROFESSOR: "Prof.", PROFA: "Profa.",
+    SEN: "Senador", SENADOR: "Senador",
+    PE: "Padre", PADRE: "Padre",
+    STA: "Santa", SANTA: "Santa",
+    STO: "Santo", SANTO: "Santo",
+    GAL: "General", GENERAL: "General",
+    CEL: "Coronel", CORONEL: "Coronel",
+    MAL: "Marechal", MARECHAL: "Marechal",
+    CARD: "Cardeal", CARDEAL: "Cardeal",
+    PRES: "Presidente", PRESIDENTE: "Presidente",
+    ENG: "Engenheiro", ENGENHEIRO: "Engenheiro",
+    BR: "Barão", BARAO: "Barão",
+    VISC: "Visconde", VISCONDE: "Visconde",
+    CONDE: "Conde", DUQUE: "Duque", DOM: "Dom",
+    SAO: "São", STA_: "Santa",
+    JD: "Jardim", JARDIM: "Jardim",
+    PQ: "Parque", PARQUE: "Parque",
+    VL: "Vila", VILA: "Vila",
   };
+  // Connector words stay lowercase.
+  const LOWER = new Set(["DE", "DA", "DO", "DAS", "DOS", "E"]);
 
   return street
-    .split(" ")
+    .split(/\s+/)
     .map((w, i) => {
       const upper = w.toUpperCase();
-      if (i === 0 && EXPAND[upper]) return EXPAND[upper];
       if (EXPAND[upper]) return EXPAND[upper];
+      if (i > 0 && LOWER.has(upper)) return upper.toLowerCase();
+      if (/^\d/.test(w)) return w; // keep numbers as-is
       return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
     })
     .join(" ");
 }
+
