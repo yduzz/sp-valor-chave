@@ -49,6 +49,7 @@ export interface AddressSuggestion {
   street: string;
   example: string;
   count: number;
+  neighborhood?: string | null;
 }
 
 function normalize(s: string): string {
