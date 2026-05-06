@@ -4,6 +4,8 @@ import { searchProperties, saveEvaluation, type Property } from "@/lib/supabaseQ
 import { calculatePricing, formatCurrency } from "@/lib/mockData";
 import ComparableTable from "@/components/ComparableTable";
 import PricingResult from "@/components/PricingResult";
+import MarketValuationCard from "@/components/MarketValuationCard";
+import { aggregateMarketValuation, type MarketValuationResult } from "@/lib/marketValuation";
 import AddressSearch from "@/components/AddressSearch";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
