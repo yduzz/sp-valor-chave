@@ -8,7 +8,9 @@ export default function Header() {
   const location = useLocation();
 
   const links = [
-    { to: "/", label: "Home" },
+    { to: "/", label: "Início" },
+    { to: "/#sobre", label: "Sobre" },
+    { to: "/#funcionalidades", label: "Funcionalidades" },
   ];
 
   return (
