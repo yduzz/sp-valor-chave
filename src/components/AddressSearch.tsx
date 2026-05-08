@@ -113,9 +113,6 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
 
   return (
     <div ref={wrapperRef} className="relative w-full max-w-2xl">
-      <p className="mb-3 text-sm text-muted-foreground text-center">
-        Insira abaixo a localização do imóvel e receba uma avaliação
-      </p>
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
         <Input
@@ -123,7 +120,8 @@ export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => results.length > 0 && setIsOpen(true)}
-          className="h-14 pl-12 pr-4 text-base rounded-xl border-2 border-border bg-card shadow-card focus:border-primary focus:ring-primary"
+          placeholder="Digite o CEP ou o endereço do imóvel"
+          className="h-14 pl-12 pr-4 text-base rounded-xl border-2 border-border bg-white text-foreground placeholder:text-muted-foreground shadow-card focus:border-primary focus:ring-primary"
         />
         {isLoading && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2">
