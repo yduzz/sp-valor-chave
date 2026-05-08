@@ -28,22 +28,10 @@ function useLiveEvaluations(initial: number) {
   return value;
 }
 
-function useLivePrecision() {
-  const [value, setValue] = useState(99.2);
-  useEffect(() => {
-    const id = setInterval(() => {
-      const delta = (Math.random() - 0.5) * 0.2;
-      setValue((v) => Math.min(99.9, Math.max(98.8, +(v + delta).toFixed(1))));
-    }, 5000);
-    return () => clearInterval(id);
-  }, []);
-  return value;
-}
-
 export default function Index() {
   const navigate = useNavigate();
   const evaluations = useLiveEvaluations(199143);
-  const precision = useLivePrecision();
+  const precision = 99.3;
 
   const handleSearch = (address: string) => {
     if (address.trim()) {
