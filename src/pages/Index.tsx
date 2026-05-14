@@ -51,80 +51,51 @@ export default function Index() {
       {/* Hero */}
       <section id="inicio" className="relative overflow-hidden bg-[hsl(var(--c21-black))] text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--c21-gold)/0.18),transparent_60%)]" />
-        <div className="container py-16 md:py-24 grid lg:grid-cols-[1fr_400px] gap-12 items-center relative z-10">
-          {/* Left: copy + search */}
-          <div className="space-y-8">
-            <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.05] tracking-tight">
-              <span className="italic font-serif text-[hsl(var(--c21-gold))]">Avaliação</span>
-              <br />
-              <span className="italic font-serif text-[hsl(var(--c21-gold))]">Inteligente</span>
+        <div className="container py-12 md:py-16 relative z-10 max-w-4xl mx-auto text-center">
+          <div className="space-y-6">
+            <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight">
+              <span className="italic font-serif text-[hsl(var(--c21-gold))]">Avaliação Inteligente</span>
               <span className="text-white"> de Imóveis</span>
             </h1>
-            <p className="text-lg text-white/75 max-w-xl leading-relaxed">
+            <p className="text-base md:text-lg text-white/75 max-w-2xl mx-auto leading-relaxed">
               Avalie seu imóvel com dados reais da Prefeitura de São Paulo.
-              <br />
               Análise de mercado precisa e atualizada automaticamente.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3 max-w-2xl items-start">
+            <div className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto items-stretch">
               <div className="flex-1 w-full">
                 <AddressSearch onSelect={handleSearch} onSearch={handleSearch} />
               </div>
               <Button
                 onClick={() => handleSearch("Rua Cardeal Arcoverde 1070")}
-                className="h-14 px-8 rounded-xl bg-[hsl(var(--c21-gold))] hover:bg-[hsl(var(--c21-gold)/0.9)] text-[hsl(var(--c21-black))] font-semibold shadow-lg mt-9"
+                className="h-14 px-8 rounded-xl bg-[hsl(var(--c21-gold))] hover:bg-[hsl(var(--c21-gold)/0.9)] text-[hsl(var(--c21-black))] font-semibold shadow-lg"
               >
                 Avaliar
               </Button>
             </div>
 
             {/* Live counters */}
-            <div className="flex flex-wrap gap-10 pt-4">
+            <div className="flex flex-wrap justify-center gap-10 pt-4">
               <div>
-                <div className="font-display text-4xl md:text-5xl font-bold text-[hsl(var(--c21-gold))] tabular-nums">
+                <div className="font-display text-3xl md:text-4xl font-bold text-[hsl(var(--c21-gold))] tabular-nums">
                   {formatK(evaluations)}
                 </div>
-                <div className="text-xs uppercase tracking-wider text-white/60 mt-1 flex items-center gap-2">
+                <div className="text-xs uppercase tracking-wider text-white/60 mt-1 flex items-center justify-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-[hsl(140_60%_50%)] animate-pulse" />
                   Imóveis avaliados
                 </div>
               </div>
               <div>
-                <div className="font-display text-4xl md:text-5xl font-bold text-white tabular-nums">
+                <div className="font-display text-3xl md:text-4xl font-bold text-white tabular-nums">
                   {precision.toFixed(1)}%
                 </div>
                 <div className="text-xs uppercase tracking-wider text-white/60 mt-1">Precisão</div>
               </div>
               <div>
-                <div className="font-display text-4xl md:text-5xl font-bold text-white tabular-nums">
+                <div className="font-display text-3xl md:text-4xl font-bold text-white tabular-nums">
                   24h
                 </div>
                 <div className="text-xs uppercase tracking-wider text-white/60 mt-1">Atualização</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: mock property card */}
-          <div className="hidden lg:block">
-            <div className="rounded-2xl bg-white/5 backdrop-blur border border-white/10 p-6 shadow-2xl">
-              <div className="flex items-center gap-2 text-sm text-white/75 mb-4">
-                <span className="px-2 py-0.5 rounded-md bg-[hsl(var(--c21-gold)/0.2)] text-[hsl(var(--c21-gold))] text-xs font-semibold">Ex.</span>
-                <MapPin className="h-3.5 w-3.5" />
-                Bela Vista, São Paulo
-              </div>
-              <div className="space-y-3 text-sm">
-                {[
-                  ["Valor estimado", "R$ 1.250.000", "text-[hsl(var(--c21-gold))]"],
-                  ["R$/m²", "R$ 12.500"],
-                  ["Variação 12m", "+8.5%", "text-[hsl(140_60%_55%)]"],
-                  ["Área", "100 m²"],
-                  ["IPTU anual", "R$ 4.200"],
-                ].map(([k, v, cls]) => (
-                  <div key={k as string} className="flex justify-between border-b border-white/10 pb-2 last:border-0">
-                    <span className="text-white/70">{k}</span>
-                    <span className={`font-semibold ${cls || "text-white"}`}>{v}</span>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
