@@ -44,16 +44,16 @@ function formatPropertyType(type: string): string {
 export default function ComparableTable({ properties, selected, onToggle, maxSelection }: ComparableTableProps) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
-      <div className="overflow-x-auto">
+      <div className="overflow-auto max-h-[460px]">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/40">
-              <th className="px-4 py-3 text-left font-display font-semibold text-muted-foreground">Endereço</th>
-              <th className="px-4 py-3 text-left font-display font-semibold text-muted-foreground">Detalhes</th>
-              <th className="px-4 py-3 text-right font-display font-semibold text-muted-foreground">M²</th>
-              <th className="px-4 py-3 text-right font-display font-semibold text-muted-foreground">Preço</th>
-              <th className="px-4 py-3 text-right font-display font-semibold text-muted-foreground">R$/m²</th>
-              <th className="px-4 py-3 text-center font-display font-semibold text-muted-foreground">Ano</th>
+          <thead className="sticky top-0 z-10 bg-muted">
+            <tr className="border-b border-border">
+              <th className="px-4 py-2.5 text-left font-display font-semibold text-muted-foreground">Endereço</th>
+              <th className="px-4 py-2.5 text-left font-display font-semibold text-muted-foreground">Detalhes</th>
+              <th className="px-4 py-2.5 text-right font-display font-semibold text-muted-foreground">M²</th>
+              <th className="px-4 py-2.5 text-right font-display font-semibold text-muted-foreground">Preço</th>
+              <th className="px-4 py-2.5 text-right font-display font-semibold text-muted-foreground">R$/m²</th>
+              <th className="px-4 py-2.5 text-center font-display font-semibold text-muted-foreground">Ano</th>
             </tr>
           </thead>
           <tbody>
@@ -76,25 +76,25 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
                     disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
                   } ${isSelected ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-muted/30"}`}
                 >
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-2.5">
                     <p className="font-medium text-foreground leading-tight">{p.address}</p>
                     {locationParts.length > 0 && (
                       <p className="text-xs text-muted-foreground mt-0.5">{locationParts.join(" · ")}</p>
                     )}
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-2.5">
                     <p className="text-foreground">{detailParts.join(" · ")}</p>
                   </td>
-                  <td className="px-4 py-4 text-right text-foreground whitespace-nowrap">
+                  <td className="px-4 py-2.5 text-right text-foreground whitespace-nowrap">
                     {p.area ? `${p.area} m²` : "—"}
                   </td>
-                  <td className="px-4 py-4 text-right font-semibold text-foreground whitespace-nowrap">
+                  <td className="px-4 py-2.5 text-right font-semibold text-foreground whitespace-nowrap">
                     {formatCurrency(p.venalValue)}
                   </td>
-                  <td className="px-4 py-4 text-right text-muted-foreground whitespace-nowrap">
+                  <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
                     {formatCurrency(p.pricePerSqm)}
                   </td>
-                  <td className="px-4 py-4 text-center text-muted-foreground">{p.year}</td>
+                  <td className="px-4 py-2.5 text-center text-muted-foreground">{p.year}</td>
                 </tr>
               );
             })}
