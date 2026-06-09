@@ -65,11 +65,12 @@ export default function Index() {
 
             <div className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto items-stretch">
               <div className="flex-1 w-full">
-                <AddressSearch onSelect={handleSearch} onSearch={handleSearch} />
+                <AddressSearch onSelect={handleSearch} onSearch={handleSearch} onQueryChange={setCurrentQuery} />
               </div>
               <Button
-                onClick={() => handleSearch("Rua Cardeal Arcoverde 1070")}
-                className="h-14 px-8 rounded-xl bg-[hsl(var(--c21-gold))] hover:bg-[hsl(var(--c21-gold)/0.9)] text-[hsl(var(--c21-black))] font-semibold shadow-lg"
+                onClick={() => handleSearch(currentQuery)}
+                disabled={!currentQuery.trim()}
+                className="h-14 px-8 rounded-xl bg-[hsl(var(--c21-gold))] hover:bg-[hsl(var(--c21-gold)/0.9)] text-[hsl(var(--c21-black))] font-semibold shadow-lg disabled:opacity-50"
               >
                 Avaliar
               </Button>
