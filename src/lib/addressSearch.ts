@@ -124,7 +124,10 @@ export async function searchAddressesInDB(query: string): Promise<AddressSuggest
   const grouped = new Map<string, { street: string; count: number; example: string; neighborhood: string | null }>();
   for (const row of rows) {
     const cleaned = stripUnitDetails(row.address);
-    const key = userTypedNumber ? cleaned : stripStreetNumber(cleaned);
+    // Always group by street (without number). If the user typed a number that
+    // doesn't exist in the DB, we still surface the street so they can see
+    // nearby transactions instead of getting an empty autocomplete.
+    const key = stripStreetNumber(cleaned);
     if (!grouped.has(key)) {
       grouped.set(key, { street: key, count: 0, example: row.address, neighborhood: row.neighborhood });
     }
