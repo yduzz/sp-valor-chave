@@ -32,6 +32,7 @@ export default function Index() {
   const navigate = useNavigate();
   const evaluations = useLiveEvaluations(199143);
   const precision = 99.3;
+  const [currentQuery, setCurrentQuery] = useState("");
 
   const handleSearch = (address: string) => {
     if (address.trim()) {
