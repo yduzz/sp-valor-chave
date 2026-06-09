@@ -118,7 +118,7 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
         <Input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { setQuery(e.target.value); onQueryChange?.(e.target.value); }}
           onKeyDown={handleKeyDown}
           onFocus={() => results.length > 0 && setIsOpen(true)}
           placeholder="Digite o CEP ou o endereço do imóvel"
