@@ -7,6 +7,7 @@ import { searchAddress, formatResult, type NominatimResult } from "@/lib/nominat
 interface AddressSearchProps {
   onSelect: (address: string) => void;
   onSearch: (address: string) => void;
+  onQueryChange?: (value: string) => void;
 }
 
 interface CombinedResult {
