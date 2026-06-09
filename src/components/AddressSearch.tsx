@@ -17,7 +17,7 @@ interface CombinedResult {
   searchValue: string;
 }
 
-export default function AddressSearch({ onSelect, onSearch }: AddressSearchProps) {
+export default function AddressSearch({ onSelect, onSearch, onQueryChange }: AddressSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CombinedResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
