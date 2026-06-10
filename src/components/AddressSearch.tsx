@@ -51,16 +51,15 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
     }
     setIsLoading(true);
     debounceRef.current = setTimeout(async () => {
-      // Run both searches in parallel
-      const [dbResults, nominatimResults] = await Promise.all([
+      const [dbResults, geoResults] = await Promise.all([
         searchAddressesInDB(query).catch(() => [] as AddressSuggestion[]),
-        query.length >= 3 ? searchAddress(query).catch(() => [] as NominatimResult[]) : Promise.resolve([] as NominatimResult[]),
+        geoapifyAutocomplete(query).catch(() => [] as GeoapifyResult[]),
       ]);
 
       const combined: CombinedResult[] = [];
       const typedNumber = extractTypedNumber(query);
 
-      // DB results first (more precise, from real data)
+      // DB results first (real transactions)
       for (const r of dbResults) {
         const hood = r.neighborhood ? formatStreetDisplay(r.neighborhood) : "";
         const streetLabel = formatStreetDisplay(r.street);
@@ -73,20 +72,26 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
         });
       }
 
-      // Nominatim results (broader coverage)
+      // Geoapify results (broad geocoding coverage)
       const seenLabels = new Set(combined.map(c => c.label.toUpperCase()));
-      for (const r of nominatimResults) {
-        const { primary, secondary, full } = formatResult(r);
-        if (!seenLabels.has(primary.toUpperCase())) {
+      for (const r of geoResults) {
+        const key = r.primary.toUpperCase();
+        if (!seenLabels.has(key)) {
           combined.push({
-            type: "nominatim",
-            label: primary,
-            sublabel: secondary,
-            searchValue: full,
+            type: "geoapify",
+            label: r.primary,
+            sublabel: r.secondary,
+            searchValue: r.full,
           });
-          seenLabels.add(primary.toUpperCase());
+          seenLabels.add(key);
         }
       }
+
+      setResults(combined.slice(0, 10));
+      setIsOpen(combined.length > 0);
+      setIsLoading(false);
+      setActiveIndex(-1);
+    }, 300);
 
       setResults(combined.slice(0, 10));
       setIsOpen(combined.length > 0);
