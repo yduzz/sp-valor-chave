@@ -68,5 +68,8 @@ function formatFeature(f: GeoapifyFeature): GeoapifyResult {
     secondary,
     full: p.formatted,
     placeId: p.place_id,
+    street: street || undefined,
+    housenumber: number || undefined,
   };
 }
+
