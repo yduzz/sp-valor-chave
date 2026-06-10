@@ -23,7 +23,10 @@ export interface GeoapifyResult {
   secondary: string;
   full: string;
   placeId: string;
+  street?: string;
+  housenumber?: string;
 }
+
 
 const API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY as string | undefined;
 
