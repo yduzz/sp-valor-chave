@@ -11,7 +11,7 @@ interface AddressSearchProps {
 }
 
 interface CombinedResult {
-  type: "db" | "nominatim";
+  type: "db" | "geoapify";
   label: string;
   sublabel: string;
   searchValue: string;
