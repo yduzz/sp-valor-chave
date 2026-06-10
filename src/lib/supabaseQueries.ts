@@ -14,11 +14,11 @@ const STREET_PREFIXES = new Set([
 ]);
 
 function extractSearchTerms(address: string): { keywords: string[]; number: string | null } {
-  const primarySegment = address.split(",")[0].trim();
-  // Extract trailing house number
-  const numberMatch = primarySegment.match(/\s+(\d+[A-Za-z0-9/-]*)\s*$/);
+  const normalizedInput = address.replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+  // Extract trailing house number even when the UI formats it as "Rua X, 540".
+  const numberMatch = normalizedInput.match(/\s+(\d+[A-Za-z0-9/-]*)\s*$/);
   const number = numberMatch ? numberMatch[1] : null;
-  const streetPart = primarySegment.replace(/\s+\d+[A-Za-z0-9/-]*\s*$/, "").trim() || primarySegment;
+  const streetPart = normalizedInput.replace(/\s+\d+[A-Za-z0-9/-]*\s*$/, "").trim() || normalizedInput;
 
   // Normalize and extract distinctive keywords (skip common prefixes/abbreviations)
   const words = streetPart
@@ -34,6 +34,8 @@ function extractSearchTerms(address: string): { keywords: string[]; number: stri
 }
 
 async function fetchPropertiesFromDatabase(keywords: string[], number: string | null) {
+  if (keywords.length === 0) return [];
+
   // Search using the most distinctive keyword(s)
   // Use the longest keyword as primary search term for best specificity
   const sortedKeywords = [...keywords].sort((a, b) => b.length - a.length);
@@ -60,8 +62,21 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
     });
   }
 
-  // If a specific number was provided, sort exact matches to the top
+  // If a specific number was provided, sort exact matches and nearby numbers to the top.
   if (number && results.length > 0) {
+    const typedNumber = Number.parseInt(number, 10);
+    const extractAddressNumber = (addressValue: string) => {
+      const cleaned = addressValue
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .replace(/\s+(AP|APTO|APT|CJ|CASA|SALA|CONJ|BL|BLOCO|LJ|LOJA|SL|CS|LOTE|UNID|UNIDADE|VG|BOX|FLAT|STUDIO|N°|Nº|N\.?)\.?\s*.*/i, "")
+        .replace(/[.,]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const match = cleaned.match(/\s+(\d+)\s*$/);
+      return match ? Number.parseInt(match[1], 10) : null;
+    };
+
     const isNumberMatch = (p: typeof results[0]) => {
       const addrUpper = p.address.toUpperCase();
       return addrUpper.includes(` ${number} `) ||
@@ -70,11 +85,20 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
              new RegExp(`\\b${number}\\b`).test(addrUpper);
     };
 
-    // Sort: exact number matches first, then the rest
     results.sort((a, b) => {
       const aMatch = isNumberMatch(a) ? 0 : 1;
       const bMatch = isNumberMatch(b) ? 0 : 1;
-      return aMatch - bMatch;
+      if (aMatch !== bMatch) return aMatch - bMatch;
+
+      if (!Number.isNaN(typedNumber)) {
+        const aNumber = extractAddressNumber(a.address);
+        const bNumber = extractAddressNumber(b.address);
+        const aDistance = aNumber === null ? Number.POSITIVE_INFINITY : Math.abs(aNumber - typedNumber);
+        const bDistance = bNumber === null ? Number.POSITIVE_INFINITY : Math.abs(bNumber - typedNumber);
+        if (aDistance !== bDistance) return aDistance - bDistance;
+      }
+
+      return (b.year || 0) - (a.year || 0);
     });
   }
 
