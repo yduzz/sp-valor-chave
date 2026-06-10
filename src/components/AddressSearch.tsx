@@ -77,15 +77,20 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
       for (const r of geoResults) {
         const key = r.primary.toUpperCase();
         if (!seenLabels.has(key)) {
+          // Build a clean search value: prefer "street, number" over the long formatted string
+          const cleanSearch = r.street
+            ? (r.housenumber ? `${r.street}, ${r.housenumber}` : r.street)
+            : r.primary;
           combined.push({
             type: "geoapify",
             label: r.primary,
             sublabel: r.secondary,
-            searchValue: r.full,
+            searchValue: cleanSearch,
           });
           seenLabels.add(key);
         }
       }
+
 
       setResults(combined.slice(0, 10));
       setIsOpen(combined.length > 0);
