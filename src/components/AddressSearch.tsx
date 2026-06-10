@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, MapPin, Database, Loader2 } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { searchAddressesInDB, formatStreetDisplay, type AddressSuggestion } from "@/lib/addressSearch";
-import { searchAddress, formatResult, type NominatimResult } from "@/lib/nominatim";
+import { geoapifyAutocomplete, type GeoapifyResult } from "@/lib/geoapify";
 
 interface AddressSearchProps {
   onSelect: (address: string) => void;
