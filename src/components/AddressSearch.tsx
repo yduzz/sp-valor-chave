@@ -92,12 +92,6 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
       setIsLoading(false);
       setActiveIndex(-1);
     }, 300);
-
-      setResults(combined.slice(0, 10));
-      setIsOpen(combined.length > 0);
-      setIsLoading(false);
-      setActiveIndex(-1);
-    }, 300);
   }, [query]);
 
   const handleSelect = (result: CombinedResult) => {
