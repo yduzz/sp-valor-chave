@@ -17,6 +17,12 @@ interface CombinedResult {
   searchValue: string;
 }
 
+function extractTypedNumber(value: string): string | null {
+  const normalized = value.replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+  const match = normalized.match(/\s(\d+[A-Za-z0-9/-]*)$/);
+  return match ? match[1] : null;
+}
+
 export default function AddressSearch({ onSelect, onSearch, onQueryChange }: AddressSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CombinedResult[]>([]);
@@ -52,15 +58,18 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
       ]);
 
       const combined: CombinedResult[] = [];
+      const typedNumber = extractTypedNumber(query);
 
       // DB results first (more precise, from real data)
       for (const r of dbResults) {
         const hood = r.neighborhood ? formatStreetDisplay(r.neighborhood) : "";
+        const streetLabel = formatStreetDisplay(r.street);
+        const label = typedNumber ? `${streetLabel}, ${typedNumber}` : streetLabel;
         combined.push({
           type: "db",
-          label: formatStreetDisplay(r.street),
+          label,
           sublabel: [hood, "São Paulo", "SP"].filter(Boolean).join(", "),
-          searchValue: r.street,
+          searchValue: label,
         });
       }
 
