@@ -92,13 +92,17 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
 export async function searchProperties(address: string): Promise<Property[]> {
   if (!address.trim()) return [];
 
-  // First try direct ilike search (works when address comes from DB autocomplete)
-  const directResults = await tryDirectSearch(address);
-  if (directResults.length > 0) return directResults;
-
-  // Fallback to keyword-based search
   const { keywords, number } = extractSearchTerms(address);
+
+  // Skip the loose prefix search when a house number is present — it can match
+  // unrelated numbers (e.g. "540" matching "5400"). Go straight to keyword+number filter.
+  if (!number) {
+    const directResults = await tryDirectSearch(address);
+    if (directResults.length > 0) return directResults;
+  }
+
   const cachedResults = await fetchPropertiesFromDatabase(keywords, number);
+
 
   if (cachedResults.length > 0) {
     return cachedResults;
