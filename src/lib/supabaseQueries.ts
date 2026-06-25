@@ -108,6 +108,11 @@ export async function searchProperties(address: string): Promise<Property[]> {
     return cachedResults;
   }
 
+  // If the user typed an exact house number and we have no match in the DB,
+  // return empty instead of falling back to scraped/mock data — that fallback
+  // was returning unrelated addresses (e.g. always "Cardeal Arcoverde 1070").
+  if (number) return [];
+
   const { data, error } = await supabase.functions.invoke("scrape-properties", {
     body: { query: address },
   });
@@ -115,6 +120,7 @@ export async function searchProperties(address: string): Promise<Property[]> {
   if (error) throw error;
   return Array.isArray(data?.properties) ? (data.properties as Property[]) : [];
 }
+
 
 async function tryDirectSearch(address: string): Promise<Property[]> {
   const normalized = address
