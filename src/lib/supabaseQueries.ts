@@ -94,23 +94,17 @@ export async function searchProperties(address: string): Promise<Property[]> {
 
   const { keywords, number } = extractSearchTerms(address);
 
-  // Skip the loose prefix search when a house number is present — it can match
-  // unrelated numbers (e.g. "540" matching "5400"). Go straight to keyword+number filter.
-  if (!number) {
-    const directResults = await tryDirectSearch(address);
-    if (directResults.length > 0) return directResults;
-  }
-
+  // Always use keyword-based search:
+  // - No number → returns ALL properties on that street.
+  // - With number → returns only exact-number matches (handled inside fetchPropertiesFromDatabase).
   const cachedResults = await fetchPropertiesFromDatabase(keywords, number);
-
 
   if (cachedResults.length > 0) {
     return cachedResults;
   }
 
   // If the user typed an exact house number and we have no match in the DB,
-  // return empty instead of falling back to scraped/mock data — that fallback
-  // was returning unrelated addresses (e.g. always "Cardeal Arcoverde 1070").
+  // return empty instead of falling back to scraped/mock data.
   if (number) return [];
 
   const { data, error } = await supabase.functions.invoke("scrape-properties", {
