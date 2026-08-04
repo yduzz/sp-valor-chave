@@ -118,14 +118,27 @@ export function parseAddress(value: string): ParsedAddress {
   const normalized = normalizeAddress(value);
   const withoutUnit = stripUnitDetails(normalized);
 
-  const numberMatch = withoutUnit.match(/\s(\d+[A-Z0-9/-]*)\s*$/);
-  const number = numberMatch ? numberMatch[1] : null;
-  const street = (number
-    ? withoutUnit.slice(0, withoutUnit.length - numberMatch![0].length)
-    : withoutUnit
-  ).trim();
+  let number: string | null = null;
+  let streetPart = withoutUnit;
+
+  const trailing = withoutUnit.match(/\s(\d+[A-Z0-9/-]*)\s*$/);
+  if (trailing) {
+    number = trailing[1];
+    streetPart = withoutUnit.slice(0, withoutUnit.length - trailing[0].length);
+  } else {
+    // Número no meio da string: "Alameda Santos 700, Jardim Paulista".
+    const parts = withoutUnit.split(" ");
+    const idx = parts.findIndex((w, i) => i > 0 && /^\d{1,6}[A-Z]?$/.test(w));
+    if (idx > 0) {
+      number = parts[idx];
+      streetPart = parts.slice(0, idx).join(" ");
+    }
+  }
+
+  const street = streetPart.trim();
 
   const tokens = street
+
     .split(" ")
     .filter((w) => w.length > 0 && !CONNECTORS.has(w))
     .map(canonicalToken)
