@@ -1,32 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeAddress, parseAddress, tokenVariants } from "@/lib/addressNormalize";
 
-// Map full word → abbreviation used in the city's database (and vice-versa).
-// When the user types "CARDEAL", we also search by "CARD"; when they type "R",
-// we also try "RUA". This is the key to matching abbreviated DB rows.
-const TOKEN_VARIANTS: Record<string, string[]> = {
-  RUA: ["RUA", "R"], R: ["R", "RUA"],
-  AVENIDA: ["AVENIDA", "AV"], AV: ["AV", "AVENIDA"],
-  ALAMEDA: ["ALAMEDA", "AL"], AL: ["AL", "ALAMEDA"],
-  TRAVESSA: ["TRAVESSA", "TV", "TRAV"], TV: ["TV", "TRAVESSA"], TRAV: ["TRAV", "TRAVESSA"],
-  PRACA: ["PRACA", "PCA"], PCA: ["PCA", "PRACA"],
-  LARGO: ["LARGO", "LG"], LG: ["LG", "LARGO"],
-  ESTRADA: ["ESTRADA", "EST"], EST: ["EST", "ESTRADA"],
-  RODOVIA: ["RODOVIA", "ROD"], ROD: ["ROD", "RODOVIA"],
-  DOUTOR: ["DOUTOR", "DR"], DR: ["DR", "DOUTOR"],
-  PROFESSOR: ["PROFESSOR", "PROF"], PROF: ["PROF", "PROFESSOR"],
-  SENADOR: ["SENADOR", "SEN"], SEN: ["SEN", "SENADOR"],
-  PADRE: ["PADRE", "PE"], PE: ["PE", "PADRE"],
-  SANTA: ["SANTA", "STA"], STA: ["STA", "SANTA"],
-  SANTO: ["SANTO", "STO"], STO: ["STO", "SANTO"],
-  GENERAL: ["GENERAL", "GAL"], GAL: ["GAL", "GENERAL"],
-  CORONEL: ["CORONEL", "CEL"], CEL: ["CEL", "CORONEL"],
-  MARECHAL: ["MARECHAL", "MAL"], MAL: ["MAL", "MARECHAL"],
-  CARDEAL: ["CARDEAL", "CARD"], CARD: ["CARD", "CARDEAL"],
-  PRESIDENTE: ["PRESIDENTE", "PRES"], PRES: ["PRES", "PRESIDENTE"],
-  ENGENHEIRO: ["ENGENHEIRO", "ENG"], ENG: ["ENG", "ENGENHEIRO"],
-  BARAO: ["BARAO", "BR"],
-  VISCONDE: ["VISCONDE", "VISC"], VISC: ["VISC", "VISCONDE"],
-};
 
 // Words to ignore when matching (neighborhoods, cities, generic markers).
 const STOP_WORDS = new Set([
@@ -53,35 +27,23 @@ export interface AddressSuggestion {
 }
 
 function normalize(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[.,]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return normalizeAddress(s);
 }
 
 /**
- * Build the "or" filter string for PostgREST: each token expands to one or
- * more variants (e.g. CARDEAL → "CARDEAL,CARD"). The full filter is an AND
- * of (variant1 OR variant2 OR ...) per token, achieved by chaining .ilike
- * calls — one per token — each with an OR-of-variants pattern.
+ * Extract distinctive tokens (already canonicalized: "R" → "RUA",
+ * "CARD" → "CARDEAL") plus the typed house number, if any.
  */
 function tokensFromQuery(query: string): { tokens: string[]; numberSuffix: string | null } {
-  const norm = normalize(query);
-  const numMatch = norm.match(/\s+(\d+[A-Za-z0-9/-]*)\s*$/);
-  const numberSuffix = numMatch ? numMatch[1] : null;
-  const withoutNumber = norm.replace(/\s+\d+[A-Za-z0-9/-]*\s*$/, "").trim();
+  const { tokens: all, number } = parseAddress(query);
 
-  const all = withoutNumber.split(" ").filter(w => w.length >= 2);
   // Drop neighborhoods/cities and short noise.
-  const meaningful = all.filter(w => !STOP_WORDS.has(w));
+  const meaningful = all.filter((w) => !STOP_WORDS.has(w));
   // Prefer distinctive (non-street-type) tokens; fall back to all if none left.
-  const distinctive = meaningful.filter(w => !STREET_TYPES.has(w));
+  const distinctive = meaningful.filter((w) => !STREET_TYPES.has(w));
   const tokens = distinctive.length > 0 ? distinctive : meaningful;
 
-  return { tokens, numberSuffix };
+  return { tokens, numberSuffix: number };
 }
 
 /**
@@ -94,8 +56,9 @@ async function searchByTokens(tokens: string[]): Promise<{ address: string; neig
 
   const perToken = await Promise.all(
     tokens.slice(0, 4).map(async (token) => {
-      const variants = TOKEN_VARIANTS[token] ?? [token];
+      const variants = tokenVariants(token);
       const orFilter = variants.map(v => `address.ilike.%${v}%`).join(",");
+
       const { data } = await supabase
         .from("properties")
         .select("address, neighborhood")
