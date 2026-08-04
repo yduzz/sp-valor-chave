@@ -71,7 +71,7 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
 
   // Se um número específico foi informado, retorna SOMENTE correspondências exatas.
   if (number && results.length > 0) {
-    const wanted = canonicalToken(number);
+    const wanted = normalizeAddress(number);
     const exact = results.filter((p) => parseAddress(p.address).number === wanted);
     if (exact.length > 0) {
       exact.sort((a, b) => (b.year || 0) - (a.year || 0));
