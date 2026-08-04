@@ -73,11 +73,14 @@ export function normalizeAddress(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
+    // separador de milhar em números de porta: "1.500" / "1 500" → "1500"
+    .replace(/(\d)[.\s](\d{3})\b/g, "$1$2")
     .replace(/[.,;:'"()\[\]]/g, " ")
     .replace(/\s-\s/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
+
 
 /** Converte um token para sua forma canônica por extenso. */
 export function canonicalToken(token: string): string {
