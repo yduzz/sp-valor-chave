@@ -1,32 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeAddress, parseAddress, tokenVariants } from "@/lib/addressNormalize";
 
-// Map full word → abbreviation used in the city's database (and vice-versa).
-// When the user types "CARDEAL", we also search by "CARD"; when they type "R",
-// we also try "RUA". This is the key to matching abbreviated DB rows.
-const TOKEN_VARIANTS: Record<string, string[]> = {
-  RUA: ["RUA", "R"], R: ["R", "RUA"],
-  AVENIDA: ["AVENIDA", "AV"], AV: ["AV", "AVENIDA"],
-  ALAMEDA: ["ALAMEDA", "AL"], AL: ["AL", "ALAMEDA"],
-  TRAVESSA: ["TRAVESSA", "TV", "TRAV"], TV: ["TV", "TRAVESSA"], TRAV: ["TRAV", "TRAVESSA"],
-  PRACA: ["PRACA", "PCA"], PCA: ["PCA", "PRACA"],
-  LARGO: ["LARGO", "LG"], LG: ["LG", "LARGO"],
-  ESTRADA: ["ESTRADA", "EST"], EST: ["EST", "ESTRADA"],
-  RODOVIA: ["RODOVIA", "ROD"], ROD: ["ROD", "RODOVIA"],
-  DOUTOR: ["DOUTOR", "DR"], DR: ["DR", "DOUTOR"],
-  PROFESSOR: ["PROFESSOR", "PROF"], PROF: ["PROF", "PROFESSOR"],
-  SENADOR: ["SENADOR", "SEN"], SEN: ["SEN", "SENADOR"],
-  PADRE: ["PADRE", "PE"], PE: ["PE", "PADRE"],
-  SANTA: ["SANTA", "STA"], STA: ["STA", "SANTA"],
-  SANTO: ["SANTO", "STO"], STO: ["STO", "SANTO"],
-  GENERAL: ["GENERAL", "GAL"], GAL: ["GAL", "GENERAL"],
-  CORONEL: ["CORONEL", "CEL"], CEL: ["CEL", "CORONEL"],
-  MARECHAL: ["MARECHAL", "MAL"], MAL: ["MAL", "MARECHAL"],
-  CARDEAL: ["CARDEAL", "CARD"], CARD: ["CARD", "CARDEAL"],
-  PRESIDENTE: ["PRESIDENTE", "PRES"], PRES: ["PRES", "PRESIDENTE"],
-  ENGENHEIRO: ["ENGENHEIRO", "ENG"], ENG: ["ENG", "ENGENHEIRO"],
-  BARAO: ["BARAO", "BR"],
-  VISCONDE: ["VISCONDE", "VISC"], VISC: ["VISC", "VISCONDE"],
-};
 
 // Words to ignore when matching (neighborhoods, cities, generic markers).
 const STOP_WORDS = new Set([
