@@ -62,6 +62,135 @@ export type Database = {
         }
         Relationships: []
       }
+      market_indexes: {
+        Row: {
+          avg_price_per_sqm: number | null
+          city: string | null
+          competence: string
+          created_at: string
+          id: string
+          metrics: Json
+          monthly_variation: number | null
+          neighborhood: string | null
+          property_type: string | null
+          report_id: string | null
+          source: string
+          updated_at: string
+          yearly_variation: number | null
+        }
+        Insert: {
+          avg_price_per_sqm?: number | null
+          city?: string | null
+          competence: string
+          created_at?: string
+          id?: string
+          metrics?: Json
+          monthly_variation?: number | null
+          neighborhood?: string | null
+          property_type?: string | null
+          report_id?: string | null
+          source: string
+          updated_at?: string
+          yearly_variation?: number | null
+        }
+        Update: {
+          avg_price_per_sqm?: number | null
+          city?: string | null
+          competence?: string
+          created_at?: string
+          id?: string
+          metrics?: Json
+          monthly_variation?: number | null
+          neighborhood?: string | null
+          property_type?: string | null
+          report_id?: string | null
+          source?: string
+          updated_at?: string
+          yearly_variation?: number | null
+        }
+        Relationships: []
+      }
+      market_reports: {
+        Row: {
+          competence: string | null
+          created_at: string
+          file_hash: string | null
+          file_size: number | null
+          file_type: string | null
+          id: string
+          parsed: boolean
+          source: string
+          source_url: string
+          storage_path: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          competence?: string | null
+          created_at?: string
+          file_hash?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          parsed?: boolean
+          source: string
+          source_url: string
+          storage_path?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          competence?: string | null
+          created_at?: string
+          file_hash?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          parsed?: boolean
+          source?: string
+          source_url?: string
+          storage_path?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      market_update_logs: {
+        Row: {
+          competence: string | null
+          details: Json
+          duration_ms: number | null
+          executed_at: string
+          id: string
+          message: string | null
+          records_imported: number
+          source: string
+          status: string
+        }
+        Insert: {
+          competence?: string | null
+          details?: Json
+          duration_ms?: number | null
+          executed_at?: string
+          id?: string
+          message?: string | null
+          records_imported?: number
+          source: string
+          status: string
+        }
+        Update: {
+          competence?: string | null
+          details?: Json
+          duration_ms?: number | null
+          executed_at?: string
+          id?: string
+          message?: string | null
+          records_imported?: number
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
       properties: {
         Row: {
           ad_link: string | null
