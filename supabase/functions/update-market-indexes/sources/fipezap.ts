@@ -1,5 +1,5 @@
 import * as XLSX from "npm:xlsx@0.18.5";
-import { httpFetch } from "../lib/http.ts";
+import { fetchTextWithMirror } from "../lib/http.ts";
 import {
   absoluteUrl,
   DiscoveredReport,
@@ -21,9 +21,8 @@ const SERIES_FALLBACKS = [
 async function discover(): Promise<DiscoveredReport[]> {
   const found: DiscoveredReport[] = [];
   try {
-    const resp = await httpFetch(PAGE, 45_000);
-    if (resp.ok) {
-      const html = await resp.text();
+    const html = await fetchTextWithMirror(PAGE, 45_000);
+    {
       const hrefs = [...html.matchAll(/href="([^"]+\.(?:xlsx|xls|pdf))"/gi)].map((m) => m[1]);
       for (const href of hrefs) {
         const url = absoluteUrl(href, BASE);
@@ -161,7 +160,16 @@ export const fipezapSource: MarketSource = {
         metrics: { extracted_from: "pdf" },
       }];
     }
-    const wb = XLSX.read(bytes, { type: "array", cellDates: true });
+    // limita o parse às planilhas relevantes para caber no limite de memória
+    const names = XLSX.read(bytes, { type: "array", bookSheets: true }).SheetNames ?? [];
+    const targets = names
+      .filter((n) => /venda|locac|aluguel|indice|índice/i.test(n))
+      .slice(0, 2);
+    const wb = XLSX.read(bytes, {
+      type: "array",
+      cellDates: true,
+      sheets: targets.length ? targets : names.slice(0, 1),
+    });
     return extractFromWorkbook(wb);
   },
 };

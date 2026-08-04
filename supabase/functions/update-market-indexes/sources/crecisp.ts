@@ -1,5 +1,5 @@
 import { extractPdfText } from "../lib/pdf.ts";
-import { httpFetch } from "../lib/http.ts";
+import { fetchTextWithMirror, isPdf } from "../lib/http.ts";
 import {
   absoluteUrl,
   DiscoveredReport,
@@ -15,11 +15,17 @@ const PAGE = "https://www.crecisp.gov.br/comunicacao/pesquisasmercado/capital";
 const BASE = "https://www.crecisp.gov.br/";
 
 async function discover(): Promise<DiscoveredReport[]> {
-  const resp = await httpFetch(PAGE, 45_000);
-  if (!resp.ok) throw new Error(`CRECI-SP respondeu ${resp.status}`);
-  const html = await resp.text();
+  const html = await fetchTextWithMirror(PAGE, 45_000);
 
-  const anchors = [...html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
+  // aceita HTML (<a href>) e markdown do espelho ([titulo](url))
+  const anchors: Array<[string, string, string]> = [
+    ...[...html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)].map(
+      (m) => ["", m[1], m[2]] as [string, string, string],
+    ),
+    ...[...html.matchAll(/\[([^\]]{0,200})\]\(([^)\s]+)\)/g)].map(
+      (m) => ["", m[2], m[1]] as [string, string, string],
+    ),
+  ];
   const reports: DiscoveredReport[] = [];
   for (const [, href, inner] of anchors) {
     if (!/\.pdf(\?|$)/i.test(href)) continue;
@@ -66,7 +72,9 @@ export const creciSpSource: MarketSource = {
   pageUrl: PAGE,
   discover,
   async extract(report, bytes) {
-    const raw = await extractPdfText(bytes);
+    const raw = isPdf(bytes)
+      ? await extractPdfText(bytes)
+      : new TextDecoder("utf-8").decode(bytes);
     if (!raw.trim()) return [];
     const text = raw.replace(/\s+/g, " ");
     const n = normalize(text);

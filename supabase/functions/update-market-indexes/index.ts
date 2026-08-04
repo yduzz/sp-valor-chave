@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getSources } from "./sources/index.ts";
-import { httpFetch } from "./lib/http.ts";
+import { fetchWithMirror } from "./lib/http.ts";
 import type { DiscoveredReport, ExtractedIndex, MarketSource } from "./sources/types.ts";
 
 const corsHeaders = {
@@ -141,10 +141,8 @@ async function processSource(source: MarketSource) {
 
 async function download(report: DiscoveredReport): Promise<Uint8Array | null> {
   try {
-    const resp = await httpFetch(report.url, 120_000);
-    if (!resp.ok) return null;
-    const bytes = new Uint8Array(await resp.arrayBuffer());
-    return bytes.byteLength > 512 ? bytes : null; // validação simples de integridade
+    const res = await fetchWithMirror(report.url, 120_000);
+    return res?.bytes ?? null; // validação de integridade dentro do helper
   } catch {
     return null;
   }
