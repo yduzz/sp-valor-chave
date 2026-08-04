@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getSources } from "./sources/index.ts";
+import { httpFetch } from "./lib/http.ts";
 import type { DiscoveredReport, ExtractedIndex, MarketSource } from "./sources/types.ts";
 
 const corsHeaders = {
@@ -140,7 +141,7 @@ async function processSource(source: MarketSource) {
 
 async function download(report: DiscoveredReport): Promise<Uint8Array | null> {
   try {
-    const resp = await fetch(report.url, { signal: AbortSignal.timeout(120_000) });
+    const resp = await httpFetch(report.url, 120_000);
     if (!resp.ok) return null;
     const bytes = new Uint8Array(await resp.arrayBuffer());
     return bytes.byteLength > 512 ? bytes : null; // validação simples de integridade

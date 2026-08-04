@@ -1,4 +1,5 @@
 import { extractPdfText } from "../lib/pdf.ts";
+import { httpFetch } from "../lib/http.ts";
 import {
   absoluteUrl,
   DiscoveredReport,
@@ -14,7 +15,7 @@ const PAGE = "https://www.crecisp.gov.br/comunicacao/pesquisasmercado/capital";
 const BASE = "https://www.crecisp.gov.br/";
 
 async function discover(): Promise<DiscoveredReport[]> {
-  const resp = await fetch(PAGE, { signal: AbortSignal.timeout(45_000) });
+  const resp = await httpFetch(PAGE, 45_000);
   if (!resp.ok) throw new Error(`CRECI-SP respondeu ${resp.status}`);
   const html = await resp.text();
 

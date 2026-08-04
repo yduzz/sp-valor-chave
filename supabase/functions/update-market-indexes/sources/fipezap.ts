@@ -1,4 +1,5 @@
 import * as XLSX from "npm:xlsx@0.18.5";
+import { httpFetch } from "../lib/http.ts";
 import {
   absoluteUrl,
   DiscoveredReport,
@@ -20,7 +21,7 @@ const SERIES_FALLBACKS = [
 async function discover(): Promise<DiscoveredReport[]> {
   const found: DiscoveredReport[] = [];
   try {
-    const resp = await fetch(PAGE, { signal: AbortSignal.timeout(45_000) });
+    const resp = await httpFetch(PAGE, 45_000);
     if (resp.ok) {
       const html = await resp.text();
       const hrefs = [...html.matchAll(/href="([^"]+\.(?:xlsx|xls|pdf))"/gi)].map((m) => m[1]);
