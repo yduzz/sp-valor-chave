@@ -1,92 +1,88 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import {
+  parseAddress,
+  canonicalToken,
+  tokenVariants,
+  normalizeAddress,
+  stripUnitDetails,
+} from "@/lib/addressNormalize";
 
 export type Property = Tables<"properties">;
 
-const STREET_PREFIXES = new Set([
-  "RUA", "R", "AVENIDA", "AV", "ALAMEDA", "AL", "TRAVESSA", "TV", "TRAV",
-  "PRACA", "PCA", "LARGO", "LG", "ESTRADA", "EST", "RODOVIA", "ROD",
-  "DOUTOR", "DR", "PROFESSOR", "PROF", "SENADOR", "SEN", "PADRE", "PE",
-  "SANTA", "STA", "SANTO", "STO", "GENERAL", "GAL", "CORONEL", "CEL",
-  "MARECHAL", "MAL", "CARDEAL", "CARD", "PRESIDENTE", "PRES",
-  "ENGENHEIRO", "ENG", "BARAO", "VISCONDE", "CONDE", "DUQUE", "DOM",
-  "SAO", "VILA", "JARDIM", "JD", "PARQUE", "PQ",
+// Tokens genéricos (tipo de via e títulos) — úteis para conferência, mas
+// ruins como termo principal de busca por serem pouco distintivos.
+const GENERIC_TOKENS = new Set([
+  "RUA", "AVENIDA", "ALAMEDA", "TRAVESSA", "PRACA", "LARGO", "ESTRADA",
+  "RODOVIA", "VIADUTO", "MARGINAL", "DOUTOR", "DOUTORA", "PROFESSOR",
+  "PROFESSORA", "SENADOR", "DEPUTADO", "PADRE", "SANTA", "SANTO", "SAO",
+  "GENERAL", "CORONEL", "MARECHAL", "CAPITAO", "BRIGADEIRO", "CARDEAL",
+  "PRESIDENTE", "ENGENHEIRO", "MINISTRO", "CONSELHEIRO", "DESEMBARGADOR",
+  "BARAO", "VISCONDE", "MARQUES", "CONDE", "DUQUE", "DOM",
+  "JARDIM", "PARQUE", "VILA", "CONJUNTO",
 ]);
 
 function extractSearchTerms(address: string): { keywords: string[]; number: string | null } {
-  const normalizedInput = address.replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
-  // Extract trailing house number even when the UI formats it as "Rua X, 540".
-  const numberMatch = normalizedInput.match(/\s+(\d+[A-Za-z0-9/-]*)\s*$/);
-  const number = numberMatch ? numberMatch[1] : null;
-  const streetPart = normalizedInput.replace(/\s+\d+[A-Za-z0-9/-]*\s*$/, "").trim() || normalizedInput;
+  const { tokens, number } = parseAddress(address);
+  const distinctive = tokens.filter((t) => !GENERIC_TOKENS.has(t));
+  return { keywords: distinctive.length > 0 ? distinctive : tokens, number };
+}
 
-  // Normalize and extract distinctive keywords (skip common prefixes/abbreviations)
-  const words = streetPart
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[.,]/g, " ")
-    .split(/\s+/)
-    .filter(w => w.length >= 2);
-
-  const keywords = words.filter(w => !STREET_PREFIXES.has(w));
-  // If all words were prefixes, use all of them
-  return { keywords: keywords.length > 0 ? keywords : words, number };
+/** Tokens canônicos de um endereço vindo do banco (que costuma ser abreviado). */
+function canonicalTokensOf(addressValue: string): Set<string> {
+  return new Set(
+    stripUnitDetails(normalizeAddress(addressValue))
+      .split(" ")
+      .filter(Boolean)
+      .map(canonicalToken)
+  );
 }
 
 async function fetchPropertiesFromDatabase(keywords: string[], number: string | null) {
   if (keywords.length === 0) return [];
 
-  // Search using the most distinctive keyword(s)
-  // Use the longest keyword as primary search term for best specificity
+  // Termo principal: o mais longo (mais distintivo). Busca no banco com TODAS
+  // as grafias equivalentes ("CARDEAL" também procura "CARD").
   const sortedKeywords = [...keywords].sort((a, b) => b.length - a.length);
   const primaryKeyword = sortedKeywords[0];
+  const orFilter = tokenVariants(primaryKeyword)
+    .map((v) => `address.ilike.%${v}%`)
+    .join(",");
 
-  let query = supabase
+  const { data, error } = await supabase
     .from("properties")
     .select("*")
-    .ilike("address", `%${primaryKeyword}%`)
+    .or(orFilter)
     .order("year", { ascending: false })
     .limit(1000);
 
-  const { data, error } = await query;
   if (error) throw error;
 
   let results = data || [];
 
-  // Filter by additional keywords for precision
+  // Confere os demais tokens comparando formas canônicas (abreviação = extenso).
   if (sortedKeywords.length > 1) {
     const otherKeywords = sortedKeywords.slice(1);
     results = results.filter((p) => {
-      const addrUpper = p.address.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      return otherKeywords.every(kw => addrUpper.includes(kw));
+      const dbTokens = canonicalTokensOf(p.address);
+      return otherKeywords.every((kw) => dbTokens.has(canonicalToken(kw)));
     });
   }
 
-  // If a specific number was provided, return ONLY exact-number matches on that street.
+  // Se um número específico foi informado, retorna SOMENTE correspondências exatas.
   if (number && results.length > 0) {
-    const extractAddressNumber = (addressValue: string) => {
-      const cleaned = addressValue
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .toUpperCase()
-        .replace(/\s+(AP|APTO|APT|CJ|CASA|SALA|CONJ|BL|BLOCO|LJ|LOJA|SL|CS|LOTE|UNID|UNIDADE|VG|BOX|FLAT|STUDIO|N°|Nº|N\.?)\.?\s*.*/i, "")
-        .replace(/[.,]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      const match = cleaned.match(/\s+(\d+)\s*$/);
-      return match ? match[1] : null;
-    };
-
-    const exact = results.filter((p) => extractAddressNumber(p.address) === number);
+    const wanted = canonicalToken(number);
+    const exact = results.filter((p) => parseAddress(p.address).number === wanted);
     if (exact.length > 0) {
       exact.sort((a, b) => (b.year || 0) - (a.year || 0));
       return exact;
     }
-    // No exact number match — return empty so the UI shows "0 imóveis" instead of misleading data.
     return [];
   }
 
   return results;
 }
+
 
 
 export async function searchProperties(address: string): Promise<Property[]> {
