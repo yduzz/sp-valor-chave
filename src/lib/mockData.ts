@@ -9,6 +9,25 @@ export interface PropertyData {
   fiscalZone: string;
   pricePerSqm: number;
   adLink?: string;
+  /** Valor de transação declarado, normalizado para 100% do imóvel. */
+  marketValue?: number | null;
+  /** Valor de transação declarado exatamente como consta na guia (pode ser parcial). */
+  transactionValue?: number | null;
+  /** Proporção transmitida na guia (%). */
+  proportionPct?: number | null;
+  matricula?: string | null;
+  transactionDate?: string | null;
+}
+
+/** Valor de referência do imóvel: transação normalizada a 100% quando existir. */
+export function referenceValue(p: PropertyData): number {
+  return p.marketValue && p.marketValue > 0 ? p.marketValue : p.venalValue;
+}
+
+/** R$/m² coerente com o valor de referência. */
+export function referencePerSqm(p: PropertyData): number {
+  const value = referenceValue(p);
+  return p.area > 0 ? Math.round(value / p.area) : p.pricePerSqm;
 }
 
 export const mockProperties: PropertyData[] = [
@@ -80,8 +99,10 @@ export function adjustToPresent(value: number, year: number): number {
 }
 
 export function calculatePricing(properties: PropertyData[]) {
-  const adjustedValues = properties.map((p) => adjustToPresent(p.venalValue, p.year));
-  const adjustedPerSqm = properties.map((p, i) => Math.round(adjustedValues[i] / p.area));
+  const adjustedValues = properties.map((p) => adjustToPresent(referenceValue(p), p.year));
+  const adjustedPerSqm = properties.map((p, i) =>
+    p.area > 0 ? Math.round(adjustedValues[i] / p.area) : 0,
+  );
 
   const minValue = Math.min(...adjustedValues);
   const maxValue = Math.max(...adjustedValues);

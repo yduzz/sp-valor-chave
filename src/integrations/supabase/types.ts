@@ -199,10 +199,16 @@ export type Database = {
           created_at: string
           fiscal_zone: string | null
           id: string
+          matricula: string | null
           neighborhood: string | null
           price_per_sqm: number | null
           property_type: string | null
+          proportion_pct: number | null
+          transaction_date: string | null
+          transaction_value: number | null
+          transaction_value_full: number | null
           updated_at: string
+          venal_reference: number | null
           venal_value: number
           year: number
         }
@@ -213,10 +219,16 @@ export type Database = {
           created_at?: string
           fiscal_zone?: string | null
           id?: string
+          matricula?: string | null
           neighborhood?: string | null
           price_per_sqm?: number | null
           property_type?: string | null
+          proportion_pct?: number | null
+          transaction_date?: string | null
+          transaction_value?: number | null
+          transaction_value_full?: number | null
           updated_at?: string
+          venal_reference?: number | null
           venal_value: number
           year: number
         }
@@ -227,10 +239,16 @@ export type Database = {
           created_at?: string
           fiscal_zone?: string | null
           id?: string
+          matricula?: string | null
           neighborhood?: string | null
           price_per_sqm?: number | null
           property_type?: string | null
+          proportion_pct?: number | null
+          transaction_date?: string | null
+          transaction_value?: number | null
+          transaction_value_full?: number | null
           updated_at?: string
+          venal_reference?: number | null
           venal_value?: number
           year?: number
         }

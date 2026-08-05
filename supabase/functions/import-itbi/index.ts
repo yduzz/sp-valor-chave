@@ -20,6 +20,43 @@ interface Row {
   property_type: string | null;
   year: number;
   price_per_sqm: number | null;
+  transaction_value: number | null;
+  transaction_value_full: number | null;
+  proportion_pct: number | null;
+  matricula: string | null;
+  transaction_date: string | null;
+  venal_reference: number | null;
+}
+
+/** Converte "1.234.567,89" | 1234567.89 | "" em número. */
+function num(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const s = String(v).replace(/[R$\s]/g, "");
+  const n = Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Datas do ITBI vêm como serial Excel ou "dd/mm/aaaa". */
+function toDate(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === "number" && v > 20000 && v < 80000) {
+    const d = new Date(Date.UTC(1899, 11, 30) + v * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
+  const m = String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  const iso = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? iso[0] : null;
+}
+
+/** Normaliza o valor declarado para 100% do imóvel. */
+function fullValue(transaction: number | null, proportion: number | null): number | null {
+  if (!transaction || transaction <= 0) return null;
+  // Proporções < 1% são ruído do dataset (o valor declarado já é o total).
+  if (proportion == null || proportion < 1 || proportion >= 99.5) return transaction;
+  return Math.round((transaction / (proportion / 100)) * 100) / 100;
 }
 
 Deno.serve(async (req) => {
@@ -33,15 +70,33 @@ Deno.serve(async (req) => {
   );
 
   const results: Record<string, number> = {};
+  let force = false;
+  let onlyYear: number | null = null;
+  try {
+    const body = req.method === "POST" ? await req.json() : null;
+    force = body?.force === true;
+    onlyYear = body?.year != null ? Number(body.year) : null;
+  } catch (_) {
+    force = false;
+  }
 
   try {
     for (const [yearStr, url] of Object.entries(URLS)) {
       const year = Number(yearStr);
+      if (onlyYear != null && year !== onlyYear) continue;
 
       const { count: existingCount } = await supabase
         .from("properties")
         .select("*", { count: "exact", head: true })
         .eq("year", year);
+
+      // Se os registros existentes ainda não têm valor de transação, é preciso
+      // reimportar mesmo que a contagem não tenha mudado.
+      const { count: enrichedCount } = await supabase
+        .from("properties")
+        .select("*", { count: "exact", head: true })
+        .eq("year", year)
+        .not("transaction_value", "is", null);
 
       const resp = await fetch(url, { signal: AbortSignal.timeout(120_000) });
       if (!resp.ok) {
@@ -51,22 +106,28 @@ Deno.serve(async (req) => {
       const buf = new Uint8Array(await resp.arrayBuffer());
       const wb = XLSX.read(buf, { type: "array" });
 
-      const rows: Row[] = year === 2024
-        ? parse2024(wb, year)
-        : parse2025Plus(wb, year);
-
-      if (existingCount !== null && rows.length <= existingCount) {
+      const needsEnrichment = (enrichedCount ?? 0) === 0 && (existingCount ?? 0) > 0;
+      const shouldImport = force || needsEnrichment || (existingCount ?? 0) === 0;
+      if (!shouldImport) {
         results[yearStr] = 0;
         continue;
       }
 
       await supabase.from("properties").delete().eq("year", year);
 
+      // Processa uma aba por vez e grava em lotes, para não estourar a memória.
       let inserted = 0;
-      for (let i = 0; i < rows.length; i += 500) {
-        const batch = rows.slice(i, i + 500);
-        const { error } = await supabase.from("properties").insert(batch);
-        if (!error) inserted += batch.length;
+      for (const name of wb.SheetNames) {
+        if (/LEGENDA|EXPLIC|TABELA|PADR/i.test(name)) continue;
+        const rows = year === 2024
+          ? parse2024Sheet(wb.Sheets[name], year)
+          : parse2025PlusSheet(wb.Sheets[name], year);
+        delete wb.Sheets[name];
+        for (let i = 0; i < rows.length; i += 500) {
+          const batch = rows.slice(i, i + 500);
+          const { error } = await supabase.from("properties").insert(batch);
+          if (!error) inserted += batch.length;
+        }
       }
       results[yearStr] = inserted;
     }
@@ -81,11 +142,9 @@ Deno.serve(async (req) => {
 });
 
 /** 2024 file has no header row. Columns are positional. */
-function parse2024(wb: XLSX.WorkBook, year: number): Row[] {
+function parse2024Sheet(ws: XLSX.WorkSheet, year: number): Row[] {
   const rows: Row[] = [];
-  for (const name of wb.SheetNames) {
-    if (/LEGENDA|EXPLIC|TABELA|PADR/i.test(name)) continue;
-    const ws = wb.Sheets[name];
+  {
     const data: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
     for (const v of data) {
       if (!v || v.length < 20) continue;
@@ -96,9 +155,16 @@ function parse2024(wb: XLSX.WorkBook, year: number): Row[] {
       const compl = String(v[3] ?? "").trim();
       const bairro = String(v[4] ?? "").trim() || null;
       const venal = Number(v[12]) || 0;
-      if (venal <= 0) continue;
+      const transacao = num(v[8]);
+      const dataTransacao = toDate(v[9]);
+      const vvr = num(v[10]);
+      const proporcao = num(v[11]);
+      const matricula = String(v[17] ?? "").trim() || null;
+      const cheio = fullValue(transacao, proporcao);
+      if (venal <= 0 && !cheio) continue;
       const area = Number(v[22]) || null;
       const tipo = String(v[24] ?? "").trim() || null;
+      const base = cheio ?? venal;
 
       const parts = [logr];
       if (numero && numero !== "0" && numero !== "99999") parts.push(numero);
@@ -111,7 +177,13 @@ function parse2024(wb: XLSX.WorkBook, year: number): Row[] {
         venal_value: venal,
         property_type: tipo,
         year,
-        price_per_sqm: area && area > 0 ? Math.round((venal / area) * 100) / 100 : null,
+        price_per_sqm: area && area > 0 ? Math.round((base / area) * 100) / 100 : null,
+        transaction_value: transacao,
+        transaction_value_full: cheio,
+        proportion_pct: proporcao,
+        matricula,
+        transaction_date: dataTransacao,
+        venal_reference: vvr,
       });
     }
   }
@@ -119,13 +191,11 @@ function parse2024(wb: XLSX.WorkBook, year: number): Row[] {
 }
 
 /** 2025/2026 files have a header row with LOGRADOURO etc. */
-function parse2025Plus(wb: XLSX.WorkBook, year: number): Row[] {
+function parse2025PlusSheet(ws: XLSX.WorkSheet, year: number): Row[] {
   const rows: Row[] = [];
-  for (const name of wb.SheetNames) {
-    if (/LEGENDA|EXPLIC|TABELA|PADR/i.test(name)) continue;
-    const ws = wb.Sheets[name];
-    const data: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
-    if (!data.length) continue;
+  {
+    const data: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    if (!data.length) return rows;
 
     let headerIdx = -1;
     const colMap: Record<string, number> = {};
@@ -142,18 +212,22 @@ function parse2025Plus(wb: XLSX.WorkBook, year: number): Row[] {
           else if (h.includes("VENAL") && h.includes("PROPORCIONAL")) colMap["venal"] = idx;
           else if (h.includes("VENAL") && !colMap["venal"]) colMap["venal"] = idx;
           else if (h.includes("DESCRI") && h.includes("USO")) colMap["tipo"] = idx;
+          else if (h.includes("TRANSA") && h.includes("VALOR")) colMap["transacao"] = idx;
+          else if (h.includes("DATA") && h.includes("TRANSA")) colMap["data"] = idx;
+          else if (h.includes("PROPOR")) colMap["proporcao"] = idx;
+          else if (h.includes("MATR")) colMap["matricula"] = idx;
         });
         break;
       }
     }
-    if (headerIdx < 0) continue;
+    if (headerIdx < 0) return rows;
 
     for (let i = headerIdx + 1; i < data.length; i++) {
-      const v = data[i];
+      const v = data[i] as unknown[];
       if (!v || v.length < 5) continue;
       const g = (k: string) => {
         const idx = colMap[k];
-        return idx !== undefined && idx < v.length ? v[idx] : null;
+        return idx !== undefined && idx < v.length ? (v[idx] as unknown) : null;
       };
       const logr = String(g("logradouro") ?? "").trim();
       if (!logr) continue;
@@ -161,9 +235,15 @@ function parse2025Plus(wb: XLSX.WorkBook, year: number): Row[] {
       const compl = String(g("complemento") ?? "").trim();
       const bairro = String(g("bairro") ?? "").trim() || null;
       const area = g("area") ? Number(g("area")) || null : null;
-      const venal = g("venal") ? Number(g("venal")) : null;
-      if (!venal || venal <= 0) continue;
+      const venal = num(g("venal"));
+      const transacao = num(g("transacao"));
+      const proporcao = num(g("proporcao"));
+      const dataTransacao = toDate(g("data"));
+      const matricula = String(g("matricula") ?? "").trim() || null;
+      const cheio = fullValue(transacao, proporcao);
+      if ((!venal || venal <= 0) && !cheio) continue;
       const tipo = String(g("tipo") ?? "").trim() || null;
+      const base = cheio ?? venal ?? 0;
 
       const parts = [logr];
       if (numero && numero !== "0") parts.push(numero);
@@ -173,10 +253,16 @@ function parse2025Plus(wb: XLSX.WorkBook, year: number): Row[] {
         address: parts.join(" ").slice(0, 500),
         neighborhood: bairro,
         area,
-        venal_value: venal,
+        venal_value: venal ?? 0,
         property_type: tipo,
         year,
-        price_per_sqm: area && area > 0 ? Math.round((venal / area) * 100) / 100 : null,
+        price_per_sqm: area && area > 0 ? Math.round((base / area) * 100) / 100 : null,
+        transaction_value: transacao,
+        transaction_value_full: cheio,
+        proportion_pct: proporcao,
+        matricula,
+        transaction_date: dataTransacao,
+        venal_reference: venal,
       });
     }
   }
