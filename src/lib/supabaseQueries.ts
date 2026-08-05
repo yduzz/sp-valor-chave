@@ -53,7 +53,7 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
     .from("properties")
     .select("*")
     .or(orFilter)
-    .order("year", { ascending: false })
+    .order("transaction_date", { ascending: false, nullsFirst: false })
     .limit(1000);
 
   if (error) throw error;
@@ -74,7 +74,7 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
     const wanted = normalizeAddress(number);
     const exact = results.filter((p) => parseAddress(p.address).number === wanted);
     if (exact.length > 0) {
-      exact.sort((a, b) => (b.year || 0) - (a.year || 0));
+      exact.sort((a, b) => (b.transaction_date || "").localeCompare(a.transaction_date || ""));
       return exact;
     }
     return [];

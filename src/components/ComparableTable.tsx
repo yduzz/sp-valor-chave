@@ -1,4 +1,4 @@
-import { type PropertyData, formatCurrency } from "@/lib/mockData";
+import { type PropertyData, formatCurrency, referenceValue, referencePerSqm } from "@/lib/mockData";
 
 interface ComparableTableProps {
   properties: PropertyData[];
@@ -41,6 +41,12 @@ function formatPropertyType(type: string): string {
   return type;
 }
 
+function formatPeriod(date: string | null | undefined, year: number): string {
+  if (!date) return String(year);
+  const [y, m] = date.split("-");
+  return m ? `${m}/${y}` : String(year);
+}
+
 export default function ComparableTable({ properties, selected, onToggle, maxSelection }: ComparableTableProps) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
@@ -53,7 +59,8 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
               <th className="px-4 py-2.5 text-right font-display font-semibold text-muted-foreground">M²</th>
               <th className="px-4 py-2.5 text-right font-display font-semibold text-muted-foreground">Preço</th>
               <th className="px-4 py-2.5 text-right font-display font-semibold text-muted-foreground">R$/m²</th>
-              <th className="px-4 py-2.5 text-center font-display font-semibold text-muted-foreground">Ano</th>
+              <th className="px-4 py-2.5 text-center font-display font-semibold text-muted-foreground">Proporção</th>
+              <th className="px-4 py-2.5 text-center font-display font-semibold text-muted-foreground">Mês/Ano</th>
             </tr>
           </thead>
           <tbody>
@@ -65,6 +72,7 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
               const detailParts = [typeLabel, floorInfo].filter(Boolean);
               const locationParts = [p.neighborhood, p.fiscalZone ? `Zona ${p.fiscalZone}` : null].filter(Boolean);
               const disabled = !isSelected && selected.length >= maxSelection;
+              const isPartial = p.proportionPct != null && Number(p.proportionPct) < 99.5;
 
               return (
                 <tr
@@ -89,12 +97,24 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
                     {p.area ? `${p.area} m²` : "—"}
                   </td>
                   <td className="px-4 py-2.5 text-right font-semibold text-foreground whitespace-nowrap">
-                    {formatCurrency(p.venalValue)}
+                    {formatCurrency(referenceValue(p))}
+                    {isPartial && (
+                      <span className="block text-[11px] font-normal text-muted-foreground">
+                        guia: {formatCurrency(p.transactionValue ?? 0)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
-                    {formatCurrency(p.pricePerSqm)}
+                    {formatCurrency(referencePerSqm(p))}
                   </td>
-                  <td className="px-4 py-2.5 text-center text-muted-foreground">{p.year}</td>
+                  <td className="px-4 py-2.5 text-center whitespace-nowrap">
+                    <span className={isPartial ? "text-amber-600 font-medium" : "text-muted-foreground"}>
+                      {p.proportionPct != null ? `${Number(p.proportionPct).toFixed(2)}%` : "100%"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-center text-muted-foreground whitespace-nowrap">
+                    {formatPeriod(p.transactionDate, p.year)}
+                  </td>
                 </tr>
               );
             })}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { searchProperties, saveEvaluation, type Property } from "@/lib/supabaseQueries";
-import { calculatePricing, formatCurrency } from "@/lib/mockData";
+import { calculatePricing, formatCurrency, referencePerSqm } from "@/lib/mockData";
 import ComparableTable from "@/components/ComparableTable";
 import PricingResult from "@/components/PricingResult";
 import MarketValuationCard from "@/components/MarketValuationCard";
@@ -59,6 +59,11 @@ export default function ResultPage() {
       year: p.year,
       fiscalZone: p.fiscal_zone || "",
       pricePerSqm: Number(p.price_per_sqm) || 0,
+      marketValue: p.transaction_value_full != null ? Number(p.transaction_value_full) : null,
+      transactionValue: p.transaction_value != null ? Number(p.transaction_value) : null,
+      proportionPct: p.proportion_pct != null ? Number(p.proportion_pct) : null,
+      matricula: p.matricula,
+      transactionDate: p.transaction_date,
     }));
 
     const result = calculatePricing(mapped);
@@ -67,10 +72,10 @@ export default function ResultPage() {
     // Camada de validação cruzada FipeZAP + CRECI + IBRESP
     const valuation = aggregateMarketValuation(
       mapped
-        .filter((m) => m.area > 0 && m.pricePerSqm > 0)
+        .filter((m) => m.area > 0)
         .map((m) => ({
           area: m.area,
-          pricePerSqmBase: m.pricePerSqm,
+          pricePerSqmBase: referencePerSqm(m),
           baseYear: m.year,
           neighborhood: m.neighborhood,
         })),
@@ -113,6 +118,11 @@ export default function ResultPage() {
     year: p.year,
     fiscalZone: p.fiscal_zone || "",
     pricePerSqm: Number(p.price_per_sqm) || 0,
+    marketValue: p.transaction_value_full != null ? Number(p.transaction_value_full) : null,
+    transactionValue: p.transaction_value != null ? Number(p.transaction_value) : null,
+    proportionPct: p.proportion_pct != null ? Number(p.proportion_pct) : null,
+    matricula: p.matricula,
+    transactionDate: p.transaction_date,
   }));
 
   return (
