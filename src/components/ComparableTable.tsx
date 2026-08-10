@@ -1,4 +1,4 @@
-import { type PropertyData, formatCurrency, referenceValue, referencePerSqm } from "@/lib/mockData";
+import { type PropertyData, formatCurrency, referenceValue, referencePerSqm, fullEquivalentValue } from "@/lib/mockData";
 
 interface ComparableTableProps {
   properties: PropertyData[];
