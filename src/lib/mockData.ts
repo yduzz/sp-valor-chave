@@ -19,9 +19,22 @@ export interface PropertyData {
   transactionDate?: string | null;
 }
 
-/** Valor de referência do imóvel: transação normalizada a 100% quando existir. */
+/**
+ * Valor de referência do imóvel: valor de transação declarado na guia de ITBI,
+ * exatamente como divulgado pela Prefeitura (mesma base usada pelo mercado).
+ * O valor venal só é usado quando não há transação declarada.
+ */
 export function referenceValue(p: PropertyData): number {
-  return p.marketValue && p.marketValue > 0 ? p.marketValue : p.venalValue;
+  if (p.transactionValue && p.transactionValue > 0) return p.transactionValue;
+  if (p.marketValue && p.marketValue > 0) return p.marketValue;
+  return p.venalValue;
+}
+
+/** Valor projetado para 100% do imóvel (útil em transmissões parciais). */
+export function fullEquivalentValue(p: PropertyData): number | null {
+  if (!p.marketValue || p.marketValue <= 0) return null;
+  if (p.proportionPct == null || Number(p.proportionPct) >= 99.5) return null;
+  return p.marketValue;
 }
 
 /** R$/m² coerente com o valor de referência. */
