@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const URLS: Record<number, string> = {
+  2023: "https://prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/GUIAS-DE-ITBI-PAGAS-2023.xlsx",
   2024: "https://prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/GUIAS-DE-ITBI-PAGAS-2024.xlsx",
   2025: "https://prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/GUIAS%20DE%20ITBI%20PAGAS%20%2828012026%29%20XLS.xlsx",
   2026: "https://prefeitura.sp.gov.br/documents/d/fazenda/guias-de-itbi-pagas-1-xlsx-1",
