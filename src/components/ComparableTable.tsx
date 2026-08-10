@@ -98,9 +98,9 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
                   </td>
                   <td className="px-4 py-2.5 text-right font-semibold text-foreground whitespace-nowrap">
                     {formatCurrency(referenceValue(p))}
-                    {isPartial && (
+                    {isPartial && fullEquivalentValue(p) != null && (
                       <span className="block text-[11px] font-normal text-muted-foreground">
-                        guia: {formatCurrency(p.transactionValue ?? 0)}
+                        100%: {formatCurrency(fullEquivalentValue(p) as number)}
                       </span>
                     )}
                   </td>
