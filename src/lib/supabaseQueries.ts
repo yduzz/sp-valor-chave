@@ -69,7 +69,7 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
     });
   }
 
-  // Se um número específico foi informado, retorna SOMENTE correspondências exatas.
+  // Se um número específico foi informado, prioriza correspondências exatas.
   if (number && results.length > 0) {
     const wanted = normalizeAddress(number);
     const exact = results.filter((p) => parseAddress(p.address).number === wanted);
@@ -77,8 +77,25 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
       exact.sort((a, b) => (b.transaction_date || "").localeCompare(a.transaction_date || ""));
       return exact;
     }
+
+    // Sem número exato no banco: usa os imóveis mais próximos da mesma via
+    // (mesma quadra), ordenados por proximidade numérica — comportamento de
+    // comparáveis, em vez de "nenhum imóvel encontrado".
+    const target = parseInt(wanted, 10);
+    if (!Number.isNaN(target)) {
+      const withDistance = results
+        .map((p) => {
+          const n = parseInt(parseAddress(p.address).number || "", 10);
+          return { p, d: Number.isNaN(n) ? Infinity : Math.abs(n - target) };
+        })
+        .filter((x) => x.d <= 120)
+        .sort((a, b) => a.d - b.d || (b.p.transaction_date || "").localeCompare(a.p.transaction_date || ""));
+
+      if (withDistance.length > 0) return withDistance.slice(0, 60).map((x) => x.p);
+    }
     return [];
   }
+
 
   return results;
 }
