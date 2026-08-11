@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { searchProperties, saveEvaluation, type Property } from "@/lib/supabaseQueries";
 import { calculatePricing, formatCurrency, referencePerSqm } from "@/lib/mockData";
