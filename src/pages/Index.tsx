@@ -50,7 +50,7 @@ export default function Index() {
       <Header />
 
       {/* Hero */}
-      <section id="inicio" className="relative overflow-hidden bg-[hsl(var(--c21-black))] text-white">
+      <section id="inicio" className="relative bg-[hsl(var(--c21-black))] text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--c21-gold)/0.18),transparent_60%)]" />
         <div className="container py-12 md:py-16 relative z-10 max-w-4xl mx-auto text-center">
           <div className="space-y-6">

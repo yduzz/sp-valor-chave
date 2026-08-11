@@ -145,7 +145,7 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
       </div>
 
       {isOpen && results.length > 0 && (
-        <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-card-xl overflow-hidden">
+        <div className="absolute z-50 w-full mt-2 bg-card border border-border rounded-xl shadow-card-xl overflow-y-auto max-h-[min(60vh,22rem)] overscroll-contain">
           {results.map((result, i) => (
             <button
               key={`${result.type}-${result.label}-${i}`}
