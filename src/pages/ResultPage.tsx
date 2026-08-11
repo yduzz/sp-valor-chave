@@ -146,8 +146,14 @@ export default function ResultPage() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="flex flex-col items-center justify-center py-24 animate-pulse">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-[hsl(var(--c21-gold))] rounded-full blur-xl opacity-20 animate-pulse" />
+              <Loader2 className="h-12 w-12 animate-spin text-[hsl(var(--c21-gold))] relative z-10" />
+            </div>
+            <p className="text-[hsl(var(--c21-gold))] font-medium tracking-wide animate-bounce">
+              Consultando base da Prefeitura...
+            </p>
           </div>
         ) : properties.length > 0 ? (
           <ComparableTable properties={mappedForTable} selected={selected} onToggle={handleToggle} maxSelection={3} />
