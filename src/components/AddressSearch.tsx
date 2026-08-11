@@ -42,6 +42,8 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const requestIdRef = useRef(0);
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (query.length < 2) {
@@ -50,54 +52,64 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
       return;
     }
     setIsLoading(true);
-    debounceRef.current = setTimeout(async () => {
-      const [dbResults, geoResults] = await Promise.all([
-        searchAddressesInDB(query).catch(() => [] as AddressSuggestion[]),
-        geoapifyAutocomplete(query).catch(() => [] as GeoapifyResult[]),
-      ]);
-
-      const combined: CombinedResult[] = [];
+    const reqId = ++requestIdRef.current;
+    debounceRef.current = setTimeout(() => {
       const typedNumber = extractTypedNumber(query);
+      let dbCombined: CombinedResult[] = [];
+      let geoCombined: CombinedResult[] = [];
+      let pending = 2;
 
-      // DB results first (real transactions)
-      for (const r of dbResults) {
-        const hood = r.neighborhood ? formatStreetDisplay(r.neighborhood) : "";
-        const streetLabel = formatStreetDisplay(r.street);
-        const label = typedNumber ? `${streetLabel}, ${typedNumber}` : streetLabel;
-        combined.push({
-          type: "db",
-          label,
-          sublabel: [hood, "São Paulo", "SP"].filter(Boolean).join(", "),
-          searchValue: label,
+      const publish = () => {
+        if (reqId !== requestIdRef.current) return;
+        const combined: CombinedResult[] = [...dbCombined];
+        const seenLabels = new Set(combined.map((c) => c.label.toUpperCase()));
+        for (const r of geoCombined) {
+          if (!seenLabels.has(r.label.toUpperCase())) {
+            combined.push(r);
+            seenLabels.add(r.label.toUpperCase());
+          }
+        }
+        setResults(combined.slice(0, 10));
+        setIsOpen(combined.length > 0);
+        setActiveIndex(-1);
+        if (pending === 0) setIsLoading(false);
+      };
+
+      searchAddressesInDB(query)
+        .catch(() => [] as AddressSuggestion[])
+        .then((dbResults) => {
+          dbCombined = dbResults.map((r) => {
+            const hood = r.neighborhood ? formatStreetDisplay(r.neighborhood) : "";
+            const streetLabel = formatStreetDisplay(r.street);
+            const label = typedNumber ? `${streetLabel}, ${typedNumber}` : streetLabel;
+            return {
+              type: "db" as const,
+              label,
+              sublabel: [hood, "São Paulo", "SP"].filter(Boolean).join(", "),
+              searchValue: label,
+            };
+          });
+          pending--;
+          publish();
         });
-      }
 
-      // Geoapify results (broad geocoding coverage)
-      const seenLabels = new Set(combined.map(c => c.label.toUpperCase()));
-      for (const r of geoResults) {
-        const key = r.primary.toUpperCase();
-        if (!seenLabels.has(key)) {
-          // Build a clean search value: prefer "street, number" over the long formatted string
-          const cleanSearch = r.street
-            ? (r.housenumber ? `${r.street}, ${r.housenumber}` : r.street)
-            : r.primary;
-          combined.push({
-            type: "geoapify",
+      geoapifyAutocomplete(query)
+        .catch(() => [] as GeoapifyResult[])
+        .then((geoResults) => {
+          geoCombined = geoResults.map((r) => ({
+            type: "geoapify" as const,
             label: r.primary,
             sublabel: r.secondary,
-            searchValue: cleanSearch,
-          });
-          seenLabels.add(key);
-        }
-      }
-
-
-      setResults(combined.slice(0, 10));
-      setIsOpen(combined.length > 0);
-      setIsLoading(false);
-      setActiveIndex(-1);
-    }, 300);
+            searchValue: r.street
+              ? (r.housenumber ? `${r.street}, ${r.housenumber}` : r.street)
+              : r.primary,
+          }));
+          pending--;
+          publish();
+        });
+    }, 150);
   }, [query]);
+
 
   const handleSelect = (result: CombinedResult) => {
     setQuery(result.label);
