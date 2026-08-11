@@ -159,13 +159,16 @@ export default function ResultPage() {
         )}
 
         {selected.length > 0 && !showResult && (
-          <div className="flex justify-center animate-fade-in">
-            <Button variant="hero" size="lg" onClick={handleCalculate} className="gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Calcular valor presente 2026 ({selected.length} selecionado{selected.length > 1 ? "s" : ""})
-            </Button>
+          <div className="sticky bottom-4 z-30 flex justify-center animate-fade-in">
+            <div className="rounded-full border border-border bg-card/95 backdrop-blur px-3 py-2 shadow-card-xl">
+              <Button variant="hero" size="lg" onClick={handleCalculate} className="gap-2 rounded-full">
+                <BarChart3 className="h-5 w-5" />
+                Calcular valor presente 2026 ({selected.length} selecionado{selected.length > 1 ? "s" : ""})
+              </Button>
+            </div>
           </div>
         )}
+
 
         {showResult && pricing && <PricingResult sale={pricing.sale} perSqm={pricing.perSqm} rent={pricing.rent} />}
         {showResult && refined && <RefinedPricingCard refined={refined} />}
