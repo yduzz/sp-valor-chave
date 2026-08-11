@@ -108,7 +108,7 @@ export default function ResultPage() {
     }
   };
 
-  const mappedForTable = properties.map((p) => ({
+  const mappedForTable = useMemo(() => properties.map((p) => ({
     id: p.id,
     address: p.address,
     neighborhood: p.neighborhood || "",
@@ -123,7 +123,7 @@ export default function ResultPage() {
     proportionPct: p.proportion_pct != null ? Number(p.proportion_pct) : null,
     matricula: p.matricula,
     transactionDate: p.transaction_date,
-  }));
+  })), [properties]);
 
   return (
     <div className="min-h-screen bg-background">
