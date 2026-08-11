@@ -128,7 +128,7 @@ export default function ResultPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <div className="container py-8 space-y-8">
+      <div className="container py-6 space-y-5">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="shrink-0">
             <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
