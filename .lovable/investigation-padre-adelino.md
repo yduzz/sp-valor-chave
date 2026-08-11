@@ -3,16 +3,16 @@
 O usuário reportou que nossa plataforma encontrou apenas 1 endereço que "bate" com o da Smarty Valuation para a busca "Rua Padre Adelino, 520", enquanto a Smarty teria dados mais atualizados ou abrangentes.
 
 ## Fatos Apurados
-1. **Dados Presentes:** Em nossa base, uma busca por "Rua Padre Adelino, 520" retorna **347 registros** reais.
+1. **Dados Presentes:** Em nossa base, uma busca por "Rua Padre Adelino, 520" retorna **347 registros** reais no banco de dados.
 2. **Atualização:** As transações retornadas incluem registros de **janeiro, fevereiro e março de 2026** (ex: Ap 261 em 03/2026, Ap 224 em 02/2026).
-3. **Comparação Visual:** A tabela exibe os 347 registros corretamente, todos referentes ao número 520.
+3. **Discrepância na Interface:** Embora o banco retorne 347 registros, o usuário mencionou ver "apenas 1 endereço". Isso pode ser causado por:
+    - O autocomplete sugerir apenas um item (agrupado), e o usuário esperar ver a lista completa já na sugestão.
+    - O Smarty Valuation talvez mostre transações de Abril ou Maio de 2026 que ainda não constam nos arquivos oficiais de ITBI da Prefeitura processados pelo nosso robô.
+4. **Volume de Dados:** O sistema está filtrando corretamente pelo número 520, trazendo todas as unidades (apartamentos/salas) daquele prédio.
 
-## Hipóteses para a Percepção do Usuário
-- **Filtro de Número:** O usuário pode estar se referindo a uma unidade específica (ex: um apartamento) que a Smarty tem e nós não, ou vice-versa.
-- **Formatação de Endereço:** Se a Smarty Valuation agrupa todas as unidades de um mesmo prédio em uma única linha (ou se a busca do usuário foi mais específica), ele pode ter tido a impressão de "apenas 1 resultado".
-- **Discrepância de Fonte:** A Smarty pode estar usando fontes além do ITBI (como anúncios ativos ou cartórios de registro de imóveis), embora o usuário tenha mencionado que eles estão "atualizados até o mês 05" (maio/2026?), o que sugere que eles podem ter acesso a guias de ITBI processadas mais recentemente ou projeções.
+## Conclusão Técnica
+Nossa base está atualizada até a última transação disponível na Prefeitura (06/03/2026). Se a Smarty Valuation possui dados de meses posteriores, eles podem estar utilizando fontes secundárias (estimativas baseadas em ofertas ou cartórios com acesso antecipado) ou o robô da Smarty capturou uma atualização da prefeitura que ainda não foi refletida no arquivo público de download.
 
 ## Próximos Passos
-1. Verificar se a ordenação por data está trazendo os registros de 2026 para o topo (confirmado: `fetchPropertiesFromDatabase` usa `order("transaction_date", { ascending: false })`).
-2. Confirmar se o sistema de paginação ou limite de 1000 registros está ocultando dados (improvável para 347 registros).
-3. Questionar ao usuário qual dado específico ele encontrou na Smarty que não está aparecendo aqui para identificar se é uma falha de scraping ou de filtragem.
+- Monitorar a próxima execução do robô `import-itbi` (06:00 BRT).
+- Confirmar com o usuário se os "347 resultados" que aparecem na tela de resultados (após clicar na sugestão) são o que ele esperava ou se a Smarty realmente mostra transações mais recentes (ex: Abril/Maio 2026).
