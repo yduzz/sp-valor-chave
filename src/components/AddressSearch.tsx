@@ -147,11 +147,11 @@ export default function AddressSearch({ onSelect, onSearch, onQueryChange }: Add
           onKeyDown={handleKeyDown}
           onFocus={() => results.length > 0 && setIsOpen(true)}
           placeholder="Digite o CEP ou o endereço do imóvel"
-          className="h-14 pl-12 pr-4 text-base rounded-xl border-2 border-border bg-white text-foreground placeholder:text-muted-foreground shadow-card focus:border-primary focus:ring-primary"
+          className="h-14 pl-12 pr-10 text-base rounded-xl border-2 border-border bg-white text-foreground placeholder:text-muted-foreground shadow-card focus:border-primary focus:ring-primary"
         />
         {isLoading && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2">
-            <Loader2 className="h-4 w-4 text-primary animate-spin" />
+            <Loader2 className="h-5 w-5 text-[hsl(var(--c21-gold))] animate-spin" />
           </div>
         )}
       </div>
