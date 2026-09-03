@@ -13,6 +13,9 @@ const ABBREVIATIONS: Record<string, string> = {
   GAL: "GENERAL", CEL: "CORONEL", MAL: "MARECHAL", CARD: "CARDEAL",
 };
 
+const PAGE_SIZE = 1000;
+const MAX_RESULTS = 10000;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -29,46 +32,53 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Build multiple search terms from the query
     const searchTerms = buildSearchTerms(query);
-    let allResults: unknown[] = [];
+    const allResults: any[] = [];
 
+    // Busca em páginas de 1.000 para não ficar limitada aos primeiros 40 registros.
+    // O limite de segurança de 10.000 evita respostas gigantescas em ruas muito comuns.
     for (const term of searchTerms) {
-      if (allResults.length >= 40) break;
-      const { data } = await supabase
-        .from("properties")
-        .select("*")
-        .ilike("address", `%${term}%`)
-        .order("year", { ascending: false })
-        .limit(40);
-      if (data) allResults.push(...data);
+      for (let from = 0; from < MAX_RESULTS; from += PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from("properties")
+          .select("*")
+          .ilike("address", `%${term}%`)
+          .order("transaction_date", { ascending: false, nullsFirst: false })
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        allResults.push(...data);
+        if (data.length < PAGE_SIZE || allResults.length >= MAX_RESULTS) break;
+      }
+
+      if (allResults.length >= MAX_RESULTS) break;
     }
 
-    // Deduplicate by id
+    // Remove duplicados preservando a transação mais recente primeiro.
     const seen = new Set<string>();
-    const properties = allResults.filter((p: any) => {
-      if (seen.has(p.id)) return false;
-      seen.add(p.id);
+    const properties = allResults.filter((p) => {
+      const key = String(p.id);
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
-    }).slice(0, 40);
+    }).slice(0, MAX_RESULTS);
 
-    return json({ properties, message: `${properties.length} transação(ões) encontrada(s).` });
+    return json({
+      properties,
+      total: properties.length,
+      message: `${properties.length} transação(ões) encontrada(s).`,
+    });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Erro inesperado." }, 500);
   }
 });
 
 function buildSearchTerms(query: string): string[] {
-  const stripped = query
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/,/g, " ").replace(/\s+/g, " ").trim();
-
-  // Extract street name (first segment before comma in original)
   const primarySegment = query.split(",")[0].trim();
-  // Remove trailing house number for broader match
   const streetOnly = primarySegment.replace(/\s+\d+[A-Za-z0-9/-]*\s*$/, "").trim();
 
-  // Expand abbreviations
   const expanded = streetOnly.split(" ").map(w => {
     const upper = w.toUpperCase().replace(/\./g, "");
     return ABBREVIATIONS[upper] || w;
