@@ -14,7 +14,6 @@ const ABBREVIATIONS: Record<string, string> = {
 };
 
 const PAGE_SIZE = 1000;
-const MAX_RESULTS = 10000;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -35,10 +34,10 @@ Deno.serve(async (req) => {
     const searchTerms = buildSearchTerms(query);
     const allResults: any[] = [];
 
-    // Busca em páginas de 1.000 para não ficar limitada aos primeiros 40 registros.
-    // O limite de segurança de 10.000 evita respostas gigantescas em ruas muito comuns.
+    // Supabase/PostgREST pagina em blocos. Não existe mais limite artificial
+    // de 40 ou 10.000 resultados: continua até a última página da base.
     for (const term of searchTerms) {
-      for (let from = 0; from < MAX_RESULTS; from += PAGE_SIZE) {
+      for (let from = 0; ; from += PAGE_SIZE) {
         const { data, error } = await supabase
           .from("properties")
           .select("*")
@@ -50,20 +49,18 @@ Deno.serve(async (req) => {
         if (!data || data.length === 0) break;
 
         allResults.push(...data);
-        if (data.length < PAGE_SIZE || allResults.length >= MAX_RESULTS) break;
+        if (data.length < PAGE_SIZE) break;
       }
-
-      if (allResults.length >= MAX_RESULTS) break;
     }
 
-    // Remove duplicados preservando a transação mais recente primeiro.
+    // O mesmo registro pode aparecer em mais de um termo de busca.
     const seen = new Set<string>();
     const properties = allResults.filter((p) => {
       const key = String(p.id);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).slice(0, MAX_RESULTS);
+    });
 
     return json({
       properties,
