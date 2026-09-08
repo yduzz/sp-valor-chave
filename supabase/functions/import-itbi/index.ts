@@ -92,7 +92,8 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-type Supa = ReturnType<typeof createClient>;
+// deno-lint-ignore no-explicit-any
+type Supa = any;
 
 async function upsertImport(supabase: Supa, year: number, patch: Record<string, unknown>) {
   const { error } = await supabase
