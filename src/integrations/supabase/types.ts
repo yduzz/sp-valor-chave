@@ -62,6 +62,66 @@ export type Database = {
         }
         Relationships: []
       }
+      itbi_imports: {
+        Row: {
+          created_at: string
+          details: Json
+          error: string | null
+          file_hash: string | null
+          file_size: number | null
+          finished_at: string | null
+          format: string | null
+          id: string
+          records_found: number
+          records_imported: number
+          records_rejected: number
+          source: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          url: string | null
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          error?: string | null
+          file_hash?: string | null
+          file_size?: number | null
+          finished_at?: string | null
+          format?: string | null
+          id?: string
+          records_found?: number
+          records_imported?: number
+          records_rejected?: number
+          source?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          url?: string | null
+          year: number
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          error?: string | null
+          file_hash?: string | null
+          file_size?: number | null
+          finished_at?: string | null
+          format?: string | null
+          id?: string
+          records_found?: number
+          records_imported?: number
+          records_rejected?: number
+          source?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          url?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
       market_indexes: {
         Row: {
           avg_price_per_sqm: number | null
