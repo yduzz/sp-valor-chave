@@ -346,29 +346,43 @@ function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows:
   // Cabeçalho variável entre os anos: procura nas primeiras linhas.
   let headerIdx = -1;
   const map: Record<string, number> = {};
+  let header: string[] = [];
 
   for (let i = 0; i < Math.min(25, data.length); i++) {
     const cells = (data[i] || []).map(normalizeHeader);
-    if (!cells.some(c => c.includes("LOGRADOURO") || c.includes("NOME DO LOGRADOURO"))) continue;
-
+    if (!cells.some(c => c.includes("LOGRADOURO"))) continue;
     headerIdx = i;
-    cells.forEach((h, idx) => {
-      if (!h) return;
-      if (h.includes("LOGRADOURO") && !h.includes("NUMERO")) map.logradouro ??= idx;
-      else if (h === "NUMERO" || h === "N" || h === "NO" || h.includes("NUMERO DO IMOVEL")) map.numero ??= idx;
-      else if (h.includes("COMPLEMENTO")) map.complemento ??= idx;
-      else if (h.includes("BAIRRO")) map.bairro ??= idx;
-      else if (h.includes("AREA") && (h.includes("CONSTR") || h.includes("TERRENO") || map.area === undefined)) map.area ??= idx;
-      else if (h.includes("VENAL") && h.includes("PROPORC")) map.venal ??= idx;
-      else if (h.includes("VENAL") && map.venal === undefined) map.venal = idx;
-      else if ((h.includes("DESCR") && h.includes("USO")) || h.includes("TIPO DO IMOVEL") || h.includes("USO DO IMOVEL")) map.tipo ??= idx;
-      else if (h.includes("TRANSAC") && h.includes("VALOR")) map.transacao ??= idx;
-      else if (h.includes("DATA") && (h.includes("TRANSAC") || h.includes("QUITA") || h.includes("PAGAMENTO"))) map.data ??= idx;
-      else if (h.includes("PROPOR")) map.proporcao ??= idx;
-      else if (h.includes("MATR")) map.matricula ??= idx;
-      else if ((h.includes("VALOR") && h.includes("REFER")) || h.includes("VVR")) map.vvr ??= idx;
-    });
+    header = cells;
     break;
+  }
+
+  if (headerIdx >= 0) {
+    // Aliases em ordem de prioridade: o primeiro predicado que casar vence.
+    const ALIASES: Record<string, Array<(h: string) => boolean>> = {
+      logradouro: [h => h.includes("NOME DO LOGRADOURO"), h => h.includes("LOGRADOURO") && !h.includes("NUMERO")],
+      numero: [h => h === "NUMERO" || h === "N" || h === "NO" || h === "N°", h => h.includes("NUMERO") && !h.includes("CADASTRO")],
+      complemento: [h => h.includes("COMPLEMENTO")],
+      bairro: [h => h.includes("BAIRRO")],
+      area: [h => h.includes("AREA") && h.includes("CONSTR"), h => h.includes("AREA") && h.includes("TERRENO"), h => h.includes("AREA")],
+      venal: [
+        h => h.includes("VENAL") && h.includes("PROPORC"),
+        h => h.includes("BASE DE CALCULO"),
+        h => h.includes("VENAL"),
+      ],
+      vvr: [h => h.includes("VENAL") && h.includes("REFER") && !h.includes("PROPORC"), h => h.includes("VVR")],
+      tipo: [h => h.includes("DESCR") && h.includes("USO"), h => h.includes("TIPO DO IMOVEL"), h => h.includes("USO")],
+      transacao: [h => h.includes("VALOR") && h.includes("TRANSAC")],
+      data: [h => h.includes("DATA") && h.includes("TRANSAC"), h => h.includes("DATA") && (h.includes("QUITA") || h.includes("PAGAMENTO"))],
+      proporcao: [h => h.includes("PROPOR") && !h.includes("VENAL")],
+      matricula: [h => h.includes("MATR")],
+    };
+
+    for (const [key, predicates] of Object.entries(ALIASES)) {
+      for (const predicate of predicates) {
+        const idx = header.findIndex(h => h && predicate(h));
+        if (idx >= 0) { map[key] = idx; break; }
+      }
+    }
   }
 
   // Estrutura posicional conhecida (arquivos sem cabeçalho detectável).
