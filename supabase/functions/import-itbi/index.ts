@@ -6,44 +6,53 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Fontes oficiais da Prefeitura de São Paulo (guias de ITBI pagas).
-const KNOWN_URLS: Record<number, string> = {
-  2006: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2006.xlsx",
-  2007: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2007.xlsx",
-  2008: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2008.xlsx",
-  2009: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2009.xlsx",
-  2010: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2010.xlsx",
-  2011: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2011.xlsx",
-  2012: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2012.xlsx",
-  2013: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2013.xlsx",
-  2014: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2014.xlsx",
-  2015: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2015.xlsx",
-  2016: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2016.xlsx",
-  2017: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2017.xlsx",
-  2018: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/guias_de_itbi_pagas_2018.xlsx",
-  2019: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/ITBI_Setembro_2022/GUIAS_DE_ITBI_PAGAS_(2019).xlsx",
-  2020: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/ITBI_Setembro_2022/GUIAS_DE_ITBI_PAGAS_(2020).xlsx",
-  2021: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/ITBI_Setembro_2022/GUIAS_DE_ITBI_PAGAS_(2021).xlsx",
-  2022: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/XLSX/GUIAS_DE_ITBI_PAGAS_12-2022.xlsx",
-  2023: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/XLSX/GUIAS-DE-ITBI-PAGAS-2023.xlsx",
-  2024: "https://prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/GUIAS-DE-ITBI-PAGAS-2024.xlsx",
-  2025: "https://prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi/GUIAS%20DE%20ITBI%20PAGAS%20%2828012026%29%20XLS.xlsx",
-  2026: "https://www2.prefeitura.sp.gov.br/documents/d/fazenda/guias-de-itbi-pagas-27082026-xls-xlsx",
+// O servidor da Prefeitura bloqueia requisições sem User-Agent de navegador (HTTP 403).
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+
+interface SourceEntry {
+  xlsx: string;
+  /** URL ODS oficial verificada. `null` = a Prefeitura não publica ODS para esse ano. */
+  ods: string | null;
+}
+
+const LEGACY = "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/itbi";
+const SET2022 = `${LEGACY}/ITBI_Setembro_2022`;
+
+// Catálogo oficial de fontes (guias de ITBI pagas) — todas as URLs foram verificadas
+// individualmente (HTTP 200/206). Nenhuma URL ODS foi inferida por troca de extensão:
+// os testes mostraram que a Prefeitura não publica ODS para esses anos.
+const SOURCES: Record<number, SourceEntry> = {
+  2006: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2006.xlsx`, ods: null },
+  2007: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2007.xlsx`, ods: null },
+  2008: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2008.xlsx`, ods: null },
+  2009: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2009.xlsx`, ods: null },
+  2010: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2010.xlsx`, ods: null },
+  2011: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2011.xlsx`, ods: null },
+  2012: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2012.xlsx`, ods: null },
+  2013: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2013.xlsx`, ods: null },
+  2014: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2014.xlsx`, ods: null },
+  2015: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2015.xlsx`, ods: null },
+  2016: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2016.xlsx`, ods: null },
+  2017: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2017.xlsx`, ods: null },
+  2018: { xlsx: `${LEGACY}/guias_de_itbi_pagas_2018.xlsx`, ods: null },
+  2019: { xlsx: `${SET2022}/GUIAS_DE_ITBI_PAGAS_(2019).xlsx`, ods: null },
+  2020: { xlsx: `${SET2022}/GUIAS_DE_ITBI_PAGAS_(2020).xlsx`, ods: null },
+  2021: { xlsx: `${SET2022}/GUIAS_DE_ITBI_PAGAS_(2021).xlsx`, ods: null },
+  2022: {
+    xlsx: "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/fazenda/arquivos/XLSX/GUIAS_DE_ITBI_PAGAS_12-2022.xlsx",
+    ods: null,
+  },
+  2023: { xlsx: `${LEGACY}/GUIAS-DE-ITBI-PAGAS-2023.xlsx`, ods: null },
+  2024: { xlsx: `${LEGACY}/GUIAS-DE-ITBI-PAGAS-2024.xlsx`, ods: null },
+  2025: { xlsx: `${LEGACY}/GUIAS%20DE%20ITBI%20PAGAS%20%2828012026%29%20XLS.xlsx`, ods: null },
+  2026: { xlsx: "https://www2.prefeitura.sp.gov.br/documents/d/fazenda/guias-de-itbi-pagas-27082026-xls-xlsx", ods: null },
 };
 
 const FIRST_YEAR = 2006;
 const LAST_YEAR = 2026;
 const SOURCE = "prefeitura-sp";
 const BATCH_SIZE = 500;
-
-// Fallback ODS: mesma URL oficial com a extensão .ods (formato alternativo
-// publicado pela Prefeitura). Só é tentado se o XLSX falhar.
-function odsFallback(url: string): string | null {
-  if (/\.xlsx$/i.test(url)) return url.replace(/\.xlsx$/i, ".ods");
-  if (/xls-xlsx$/i.test(url)) return url.replace(/xls-xlsx$/i, "xls-ods");
-  if (/XLS\.xlsx$/i.test(url)) return url.replace(/XLS\.xlsx$/i, "ODS.ods");
-  return null;
-}
 
 interface Row {
   address: string;
@@ -59,6 +68,7 @@ interface Row {
   matricula: string | null;
   transaction_date: string | null;
   venal_reference: number | null;
+  import_id: string;
 }
 
 function num(v: unknown): number | null {
@@ -103,7 +113,10 @@ async function upsertImport(supabase: Supa, year: number, patch: Record<string, 
 }
 
 async function download(url: string): Promise<Uint8Array> {
-  const resp = await fetch(url, { signal: AbortSignal.timeout(180_000) });
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(180_000),
+    headers: { "User-Agent": USER_AGENT, "Accept": "*/*" },
+  });
   if (!resp.ok) throw new Error(`HTTP ${resp.status} em ${url}`);
   return new Uint8Array(await resp.arrayBuffer());
 }
@@ -119,8 +132,8 @@ interface YearOutcome {
 }
 
 async function importYear(supabase: Supa, year: number, force: boolean): Promise<YearOutcome> {
-  const xlsxUrl = KNOWN_URLS[year];
-  if (!xlsxUrl) return { year, status: "failed", error: "URL oficial não cadastrada" };
+  const source = SOURCES[year];
+  if (!source) return { year, status: "failed", error: "URL oficial não cadastrada" };
 
   const { count: existingCount } = await supabase
     .from("properties")
@@ -137,15 +150,15 @@ async function importYear(supabase: Supa, year: number, force: boolean): Promise
   const alreadyDone = (existingCount ?? 0) > 0 && previous?.status === "success";
   if (!force && alreadyDone) return { year, status: "skipped", imported: 0 };
 
+  const importId = crypto.randomUUID();
   const startedAt = new Date().toISOString();
   await upsertImport(supabase, year, {
-    status: "running", format: null, url: xlsxUrl, started_at: startedAt,
+    status: "running", format: null, url: source.xlsx, started_at: startedAt, import_id: importId,
     finished_at: null, error: null, records_found: 0, records_imported: 0, records_rejected: 0,
   });
 
-  const attempts: Array<{ format: string; url: string }> = [{ format: "xlsx", url: xlsxUrl }];
-  const ods = odsFallback(xlsxUrl);
-  if (ods) attempts.push({ format: "ods", url: ods });
+  const attempts: Array<{ format: string; url: string }> = [{ format: "xlsx", url: source.xlsx }];
+  if (source.ods) attempts.push({ format: "ods", url: source.ods });
 
   let buf: Uint8Array | null = null;
   let used: { format: string; url: string } | null = null;
@@ -178,7 +191,7 @@ async function importYear(supabase: Supa, year: number, force: boolean): Promise
     const rows: Row[] = [];
     for (const name of wb.SheetNames) {
       if (/LEGENDA|EXPLIC|TABELA|PADR/i.test(name)) continue;
-      const parsed = parseSheet(wb.Sheets[name], year);
+      const parsed = parseSheet(wb.Sheets[name], year, importId);
       found += parsed.found;
       rows.push(...parsed.rows);
     }
@@ -194,22 +207,35 @@ async function importYear(supabase: Supa, year: number, force: boolean): Promise
       return { year, status: "failed", format: used.format, found, error };
     }
 
-    // Substituição atômica por ano: só apaga depois de ter os registros novos em memória.
-    const { error: deleteError } = await supabase.from("properties").delete().eq("year", year);
-    if (deleteError) throw new Error(`Falha ao limpar ${year}: ${deleteError.message}`);
-
+    // Substituição segura: insere o novo lote marcado com import_id e só remove
+    // os registros antigos do ano depois que TODOS os lotes entraram com sucesso.
     let inserted = 0;
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const batch = rows.slice(i, i + BATCH_SIZE);
-      const { error } = await supabase.from("properties").insert(batch);
-      if (error) throw new Error(`Falha ao inserir lote ${i}-${i + batch.length} de ${year}: ${error.message}`);
-      inserted += batch.length;
+    try {
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        const batch = rows.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from("properties").insert(batch);
+        if (error) throw new Error(`Falha ao inserir lote ${i}-${i + batch.length} de ${year}: ${error.message}`);
+        inserted += batch.length;
+      }
+    } catch (insertError) {
+      // Rollback do lote parcial: dados antigos do ano permanecem intactos.
+      await supabase.from("properties").delete().eq("year", year).eq("import_id", importId);
+      throw insertError;
     }
+
+    const { error: cleanupError } = await supabase
+      .from("properties").delete().eq("year", year).neq("import_id", importId);
+    if (cleanupError) console.error(`Limpeza de ${year} falhou: ${cleanupError.message}`);
+    // Registros antigos sem import_id (importações anteriores) não são alcançados por `neq`.
+    const { error: legacyCleanup } = await supabase
+      .from("properties").delete().eq("year", year).is("import_id", null);
+    if (legacyCleanup) console.error(`Limpeza legada de ${year} falhou: ${legacyCleanup.message}`);
 
     await upsertImport(supabase, year, {
       status: "success", format: used.format, url: used.url, started_at: startedAt,
       finished_at: new Date().toISOString(), records_found: found, records_imported: inserted,
       records_rejected: rejected, file_size: buf.byteLength, file_hash: fileHash, error: null,
+      import_id: importId,
       details: { sheets: wb.SheetNames, attempts: attemptErrors },
     });
 
@@ -236,11 +262,13 @@ Deno.serve(async (req) => {
   let onlyYear: number | null = null;
   let retryFailed = false;
   let maxYears = 3;
+  let dryRun = false;
   try {
     const body = req.method === "POST" ? await req.json() : null;
     force = body?.force === true;
     onlyYear = body?.year != null ? Number(body.year) : null;
     retryFailed = body?.retry_failed === true;
+    dryRun = body?.dry_run === true;
     if (body?.max_years != null) maxYears = Math.max(1, Math.min(21, Number(body.max_years)));
   } catch (_) { /* corpo opcional */ }
 
@@ -248,13 +276,33 @@ Deno.serve(async (req) => {
     let years: number[] = [];
     for (let y = FIRST_YEAR; y <= LAST_YEAR; y++) years.push(y);
 
+    // dry_run: apenas checa disponibilidade das fontes, sem tocar no banco.
+    if (dryRun) {
+      const checks = [];
+      for (const y of (onlyYear != null ? years.filter(v => v === onlyYear) : years)) {
+        const s = SOURCES[y];
+        let status = 0;
+        try {
+          const r = await fetch(s.xlsx, {
+            method: "GET",
+            headers: { "User-Agent": USER_AGENT, Range: "bytes=0-200" },
+            signal: AbortSignal.timeout(30_000),
+          });
+          status = r.status;
+          await r.body?.cancel();
+        } catch (_) { status = 0; }
+        checks.push({ year: y, url: s.xlsx, ods: s.ods, http: status, ok: status >= 200 && status < 400 });
+      }
+      return json({ dry_run: true, checks });
+    }
+
     if (onlyYear != null) {
       years = years.filter(y => y === onlyYear);
       if (!years.length) return json({ error: `Ano ${onlyYear} fora do intervalo ${FIRST_YEAR}-${LAST_YEAR}` }, 400);
     } else if (retryFailed) {
       const { data } = await supabase
         .from("itbi_imports").select("year").eq("source", SOURCE).eq("status", "failed");
-      const failed = new Set((data ?? []).map(r => Number(r.year)));
+      const failed = new Set((data ?? []).map((r: { year: number }) => Number(r.year)));
       years = years.filter(y => failed.has(y));
     }
 
@@ -291,41 +339,55 @@ function normalizeHeader(value: unknown): string {
     .trim();
 }
 
-function parseSheet(ws: XLSX.WorkSheet, year: number): { rows: Row[]; found: number } {
+function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows: Row[]; found: number } {
   const data: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
   if (!data.length) return { rows: [], found: 0 };
 
   // Cabeçalho variável entre os anos: procura nas primeiras linhas.
   let headerIdx = -1;
   const map: Record<string, number> = {};
+  let header: string[] = [];
 
   for (let i = 0; i < Math.min(25, data.length); i++) {
     const cells = (data[i] || []).map(normalizeHeader);
-    if (!cells.some(c => c.includes("LOGRADOURO") || c.includes("NOME DO LOGRADOURO"))) continue;
-
+    if (!cells.some(c => c.includes("LOGRADOURO"))) continue;
     headerIdx = i;
-    cells.forEach((h, idx) => {
-      if (!h) return;
-      if (h.includes("LOGRADOURO") && !h.includes("NUMERO")) map.logradouro ??= idx;
-      else if (h === "NUMERO" || h === "N" || h === "NO" || h.includes("NUMERO DO IMOVEL")) map.numero ??= idx;
-      else if (h.includes("COMPLEMENTO")) map.complemento ??= idx;
-      else if (h.includes("BAIRRO")) map.bairro ??= idx;
-      else if (h.includes("AREA") && (h.includes("CONSTR") || h.includes("TERRENO") || map.area === undefined)) map.area ??= idx;
-      else if (h.includes("VENAL") && h.includes("PROPORC")) map.venal ??= idx;
-      else if (h.includes("VENAL") && map.venal === undefined) map.venal = idx;
-      else if ((h.includes("DESCR") && h.includes("USO")) || h.includes("TIPO DO IMOVEL") || h.includes("USO DO IMOVEL")) map.tipo ??= idx;
-      else if (h.includes("TRANSAC") && h.includes("VALOR")) map.transacao ??= idx;
-      else if (h.includes("DATA") && (h.includes("TRANSAC") || h.includes("QUITA") || h.includes("PAGAMENTO"))) map.data ??= idx;
-      else if (h.includes("PROPOR")) map.proporcao ??= idx;
-      else if (h.includes("MATR")) map.matricula ??= idx;
-      else if ((h.includes("VALOR") && h.includes("REFER")) || h.includes("VVR")) map.vvr ??= idx;
-    });
+    header = cells;
     break;
+  }
+
+  if (headerIdx >= 0) {
+    // Aliases em ordem de prioridade: o primeiro predicado que casar vence.
+    const ALIASES: Record<string, Array<(h: string) => boolean>> = {
+      logradouro: [h => h.includes("NOME DO LOGRADOURO"), h => h.includes("LOGRADOURO") && !h.includes("NUMERO")],
+      numero: [h => h === "NUMERO" || h === "N" || h === "NO" || h === "N°", h => h.includes("NUMERO") && !h.includes("CADASTRO")],
+      complemento: [h => h.includes("COMPLEMENTO")],
+      bairro: [h => h.includes("BAIRRO")],
+      area: [h => h.includes("AREA") && h.includes("CONSTR"), h => h.includes("AREA") && h.includes("TERRENO"), h => h.includes("AREA")],
+      venal: [
+        h => h.includes("VENAL") && h.includes("PROPORC"),
+        h => h.includes("BASE DE CALCULO"),
+        h => h.includes("VENAL"),
+      ],
+      vvr: [h => h.includes("VENAL") && h.includes("REFER") && !h.includes("PROPORC"), h => h.includes("VVR")],
+      tipo: [h => h.includes("DESCR") && h.includes("USO"), h => h.includes("TIPO DO IMOVEL"), h => h.includes("USO")],
+      transacao: [h => h.includes("VALOR") && h.includes("TRANSAC")],
+      data: [h => h.includes("DATA") && h.includes("TRANSAC"), h => h.includes("DATA") && (h.includes("QUITA") || h.includes("PAGAMENTO"))],
+      proporcao: [h => h.includes("PROPOR") && !h.includes("VENAL")],
+      matricula: [h => h.includes("MATR")],
+    };
+
+    for (const [key, predicates] of Object.entries(ALIASES)) {
+      for (const predicate of predicates) {
+        const idx = header.findIndex(h => h && predicate(h));
+        if (idx >= 0) { map[key] = idx; break; }
+      }
+    }
   }
 
   // Estrutura posicional conhecida (arquivos sem cabeçalho detectável).
   if (headerIdx < 0 || map.logradouro === undefined) {
-    return parsePositional(data, year);
+    return parsePositional(data, year, importId);
   }
 
   const rows: Row[] = [];
@@ -373,13 +435,14 @@ function parseSheet(ws: XLSX.WorkSheet, year: number): { rows: Row[]; found: num
       matricula,
       transaction_date: transactionDate,
       venal_reference: venalReference,
+      import_id: importId,
     });
   }
 
   return { rows, found };
 }
 
-function parsePositional(data: unknown[][], year: number): { rows: Row[]; found: number } {
+function parsePositional(data: unknown[][], year: number, importId: string): { rows: Row[]; found: number } {
   const rows: Row[] = [];
   let found = 0;
   for (const v of data) {
@@ -411,7 +474,7 @@ function parsePositional(data: unknown[][], year: number): { rows: Row[]; found:
       price_per_sqm: area && area > 0 ? Math.round((base / area) * 100) / 100 : null,
       transaction_value: transacao, transaction_value_full: transactionFull,
       proportion_pct: proporcao, matricula, transaction_date: transactionDate,
-      venal_reference: venalReference,
+      venal_reference: venalReference, import_id: importId,
     });
   }
   return { rows, found };

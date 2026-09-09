@@ -72,6 +72,7 @@ export type Database = {
           finished_at: string | null
           format: string | null
           id: string
+          import_id: string | null
           records_found: number
           records_imported: number
           records_rejected: number
@@ -91,6 +92,7 @@ export type Database = {
           finished_at?: string | null
           format?: string | null
           id?: string
+          import_id?: string | null
           records_found?: number
           records_imported?: number
           records_rejected?: number
@@ -110,6 +112,7 @@ export type Database = {
           finished_at?: string | null
           format?: string | null
           id?: string
+          import_id?: string | null
           records_found?: number
           records_imported?: number
           records_rejected?: number
@@ -259,6 +262,7 @@ export type Database = {
           created_at: string
           fiscal_zone: string | null
           id: string
+          import_id: string | null
           matricula: string | null
           neighborhood: string | null
           price_per_sqm: number | null
@@ -279,6 +283,7 @@ export type Database = {
           created_at?: string
           fiscal_zone?: string | null
           id?: string
+          import_id?: string | null
           matricula?: string | null
           neighborhood?: string | null
           price_per_sqm?: number | null
@@ -299,6 +304,7 @@ export type Database = {
           created_at?: string
           fiscal_zone?: string | null
           id?: string
+          import_id?: string | null
           matricula?: string | null
           neighborhood?: string | null
           price_per_sqm?: number | null
