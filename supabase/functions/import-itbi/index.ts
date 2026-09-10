@@ -184,43 +184,45 @@ async function importYear(supabase: Supa, year: number, force: boolean): Promise
   }
 
   try {
-    const fileHash = await sha256(buf);
-    const wb = XLSX.read(buf, { type: "array", cellDates: true });
+    const bytes = buf;
+    const fileSize = bytes.byteLength;
+    const fileHash = await sha256(bytes);
+    const wb = XLSX.read(bytes, { type: "array", cellDates: true });
+    buf = null; // libera o buffer bruto: arquivos históricos passam de 20 MB
 
     let found = 0;
-    const rows: Row[] = [];
-    for (const name of wb.SheetNames) {
-      if (/LEGENDA|EXPLIC|TABELA|PADR/i.test(name)) continue;
-      const parsed = parseSheet(wb.Sheets[name], year, importId);
-      found += parsed.found;
-      rows.push(...parsed.rows);
-    }
-    const rejected = found - rows.length;
-
-    if (rows.length === 0) {
-      const error = "Nenhum registro válido encontrado no arquivo";
-      await upsertImport(supabase, year, {
-        status: "failed", format: used.format, url: used.url, started_at: startedAt,
-        finished_at: new Date().toISOString(), records_found: found, records_rejected: rejected,
-        file_size: buf.byteLength, file_hash: fileHash, error,
-      });
-      return { year, status: "failed", format: used.format, found, error };
-    }
-
-    // Substituição segura: insere o novo lote marcado com import_id e só remove
-    // os registros antigos do ano depois que TODOS os lotes entraram com sucesso.
     let inserted = 0;
+    const sheetNames = [...wb.SheetNames];
+
+    // Insere em lotes durante o parse para não manter todas as linhas em memória.
+    const sink = async (batch: Row[]) => {
+      const { error } = await supabase.from("properties").insert(batch);
+      if (error) throw new Error(`Falha ao inserir lote de ${year}: ${error.message}`);
+      inserted += batch.length;
+    };
+
     try {
-      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const batch = rows.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.from("properties").insert(batch);
-        if (error) throw new Error(`Falha ao inserir lote ${i}-${i + batch.length} de ${year}: ${error.message}`);
-        inserted += batch.length;
+      for (const name of sheetNames) {
+        if (/LEGENDA|EXPLIC|TABELA|PADR/i.test(name)) continue;
+        found += await parseSheet(wb.Sheets[name], year, importId, sink);
+        delete wb.Sheets[name];
       }
     } catch (insertError) {
       // Rollback do lote parcial: dados antigos do ano permanecem intactos.
       await supabase.from("properties").delete().eq("year", year).eq("import_id", importId);
       throw insertError;
+    }
+
+    const rejected = Math.max(0, found - inserted);
+
+    if (inserted === 0) {
+      const error = "Nenhum registro válido encontrado no arquivo";
+      await upsertImport(supabase, year, {
+        status: "failed", format: used.format, url: used.url, started_at: startedAt,
+        finished_at: new Date().toISOString(), records_found: found, records_rejected: rejected,
+        file_size: fileSize, file_hash: fileHash, error,
+      });
+      return { year, status: "failed", format: used.format, found, error };
     }
 
     const { error: cleanupError } = await supabase
@@ -234,9 +236,9 @@ async function importYear(supabase: Supa, year: number, force: boolean): Promise
     await upsertImport(supabase, year, {
       status: "success", format: used.format, url: used.url, started_at: startedAt,
       finished_at: new Date().toISOString(), records_found: found, records_imported: inserted,
-      records_rejected: rejected, file_size: buf.byteLength, file_hash: fileHash, error: null,
+      records_rejected: rejected, file_size: fileSize, file_hash: fileHash, error: null,
       import_id: importId,
-      details: { sheets: wb.SheetNames, attempts: attemptErrors },
+      details: { sheets: sheetNames, attempts: attemptErrors },
     });
 
     return { year, status: "imported", format: used.format, found, imported: inserted, rejected };
@@ -339,24 +341,39 @@ function normalizeHeader(value: unknown): string {
     .trim();
 }
 
-function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows: Row[]; found: number } {
-  const data: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-  if (!data.length) return { rows: [], found: 0 };
+type Sink = (batch: Row[]) => Promise<void>;
 
+/** Percorre a planilha linha a linha, sem materializar a matriz inteira. */
+function* sheetRows(ws: XLSX.WorkSheet): Generator<unknown[]> {
+  const ref = ws?.["!ref"];
+  if (!ref) return;
+  const range = XLSX.utils.decode_range(ref);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    const row: unknown[] = [];
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      row.push(cell ? (cell.v ?? null) : null);
+    }
+    yield row;
+  }
+}
+
+/** Retorna o total de linhas encontradas; as válidas são entregues ao sink em lotes. */
+async function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string, sink: Sink): Promise<number> {
   // Cabeçalho variável entre os anos: procura nas primeiras linhas.
-  let headerIdx = -1;
-  const map: Record<string, number> = {};
-  let header: string[] = [];
+  const preface: unknown[][] = [];
+  let header: string[] | null = null;
+  const iterator = sheetRows(ws);
 
-  for (let i = 0; i < Math.min(25, data.length); i++) {
-    const cells = (data[i] || []).map(normalizeHeader);
-    if (!cells.some(c => c.includes("LOGRADOURO"))) continue;
-    headerIdx = i;
-    header = cells;
-    break;
+  for (const row of iterator) {
+    const cells = row.map(normalizeHeader);
+    if (cells.some(c => c.includes("LOGRADOURO"))) { header = cells; break; }
+    preface.push(row);
+    if (preface.length >= 25) break;
   }
 
-  if (headerIdx >= 0) {
+  const map: Record<string, number> = {};
+  if (header) {
     // Aliases em ordem de prioridade: o primeiro predicado que casar vence.
     const ALIASES: Record<string, Array<(h: string) => boolean>> = {
       logradouro: [h => h.includes("NOME DO LOGRADOURO"), h => h.includes("LOGRADOURO") && !h.includes("NUMERO")],
@@ -386,16 +403,15 @@ function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows:
   }
 
   // Estrutura posicional conhecida (arquivos sem cabeçalho detectável).
-  if (headerIdx < 0 || map.logradouro === undefined) {
-    return parsePositional(data, year, importId);
+  if (!header || map.logradouro === undefined) {
+    return await parsePositional(sheetRows(ws), year, importId, sink);
   }
 
-  const rows: Row[] = [];
   let found = 0;
+  let batch: Row[] = [];
   const get = (v: unknown[], key: string) => (map[key] !== undefined ? v[map[key]] : null);
 
-  for (let i = headerIdx + 1; i < data.length; i++) {
-    const v = data[i];
+  for (const v of iterator) {
     if (!v || v.length < 3) continue;
 
     const logr = String(get(v, "logradouro") ?? "").trim();
@@ -421,7 +437,7 @@ function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows:
     if (numero && numero !== "0" && numero !== "99999") addressParts.push(numero);
     if (complemento) addressParts.push(complemento);
 
-    rows.push({
+    batch.push({
       address: addressParts.join(" ").slice(0, 500),
       neighborhood: bairro,
       area,
@@ -437,15 +453,20 @@ function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows:
       venal_reference: venalReference,
       import_id: importId,
     });
+
+    if (batch.length >= BATCH_SIZE) { await sink(batch); batch = []; }
   }
 
-  return { rows, found };
+  if (batch.length) await sink(batch);
+  return found;
 }
 
-function parsePositional(data: unknown[][], year: number, importId: string): { rows: Row[]; found: number } {
-  const rows: Row[] = [];
+async function parsePositional(
+  rows: Iterable<unknown[]>, year: number, importId: string, sink: Sink,
+): Promise<number> {
   let found = 0;
-  for (const v of data) {
+  let batch: Row[] = [];
+  for (const v of rows) {
     if (!v || v.length < 20) continue;
     const logr = String(v[1] ?? "").trim();
     if (!logr) continue;
@@ -468,7 +489,7 @@ function parsePositional(data: unknown[][], year: number, importId: string): { r
     if (numero && numero !== "0" && numero !== "99999") addressParts.push(numero);
     if (complemento) addressParts.push(complemento);
 
-    rows.push({
+    batch.push({
       address: addressParts.join(" ").slice(0, 500), neighborhood: bairro, area,
       venal_value: venal, property_type: tipo, year,
       price_per_sqm: area && area > 0 ? Math.round((base / area) * 100) / 100 : null,
@@ -476,8 +497,11 @@ function parsePositional(data: unknown[][], year: number, importId: string): { r
       proportion_pct: proporcao, matricula, transaction_date: transactionDate,
       venal_reference: venalReference, import_id: importId,
     });
+
+    if (batch.length >= BATCH_SIZE) { await sink(batch); batch = []; }
   }
-  return { rows, found };
+  if (batch.length) await sink(batch);
+  return found;
 }
 
 function json(body: unknown, status = 200) {
