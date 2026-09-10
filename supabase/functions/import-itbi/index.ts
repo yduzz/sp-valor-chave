@@ -184,43 +184,45 @@ async function importYear(supabase: Supa, year: number, force: boolean): Promise
   }
 
   try {
-    const fileHash = await sha256(buf);
-    const wb = XLSX.read(buf, { type: "array", cellDates: true });
+    const bytes = buf;
+    const fileSize = bytes.byteLength;
+    const fileHash = await sha256(bytes);
+    const wb = XLSX.read(bytes, { type: "array", cellDates: true });
+    buf = null; // libera o buffer bruto: arquivos históricos passam de 20 MB
 
     let found = 0;
-    const rows: Row[] = [];
-    for (const name of wb.SheetNames) {
-      if (/LEGENDA|EXPLIC|TABELA|PADR/i.test(name)) continue;
-      const parsed = parseSheet(wb.Sheets[name], year, importId);
-      found += parsed.found;
-      rows.push(...parsed.rows);
-    }
-    const rejected = found - rows.length;
-
-    if (rows.length === 0) {
-      const error = "Nenhum registro válido encontrado no arquivo";
-      await upsertImport(supabase, year, {
-        status: "failed", format: used.format, url: used.url, started_at: startedAt,
-        finished_at: new Date().toISOString(), records_found: found, records_rejected: rejected,
-        file_size: buf.byteLength, file_hash: fileHash, error,
-      });
-      return { year, status: "failed", format: used.format, found, error };
-    }
-
-    // Substituição segura: insere o novo lote marcado com import_id e só remove
-    // os registros antigos do ano depois que TODOS os lotes entraram com sucesso.
     let inserted = 0;
+    const sheetNames = [...wb.SheetNames];
+
+    // Insere em lotes durante o parse para não manter todas as linhas em memória.
+    const sink = async (batch: Row[]) => {
+      const { error } = await supabase.from("properties").insert(batch);
+      if (error) throw new Error(`Falha ao inserir lote de ${year}: ${error.message}`);
+      inserted += batch.length;
+    };
+
     try {
-      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const batch = rows.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.from("properties").insert(batch);
-        if (error) throw new Error(`Falha ao inserir lote ${i}-${i + batch.length} de ${year}: ${error.message}`);
-        inserted += batch.length;
+      for (const name of sheetNames) {
+        if (/LEGENDA|EXPLIC|TABELA|PADR/i.test(name)) continue;
+        found += await parseSheet(wb.Sheets[name], year, importId, sink);
+        delete wb.Sheets[name];
       }
     } catch (insertError) {
       // Rollback do lote parcial: dados antigos do ano permanecem intactos.
       await supabase.from("properties").delete().eq("year", year).eq("import_id", importId);
       throw insertError;
+    }
+
+    const rejected = Math.max(0, found - inserted);
+
+    if (inserted === 0) {
+      const error = "Nenhum registro válido encontrado no arquivo";
+      await upsertImport(supabase, year, {
+        status: "failed", format: used.format, url: used.url, started_at: startedAt,
+        finished_at: new Date().toISOString(), records_found: found, records_rejected: rejected,
+        file_size: fileSize, file_hash: fileHash, error,
+      });
+      return { year, status: "failed", format: used.format, found, error };
     }
 
     const { error: cleanupError } = await supabase
@@ -234,9 +236,9 @@ async function importYear(supabase: Supa, year: number, force: boolean): Promise
     await upsertImport(supabase, year, {
       status: "success", format: used.format, url: used.url, started_at: startedAt,
       finished_at: new Date().toISOString(), records_found: found, records_imported: inserted,
-      records_rejected: rejected, file_size: buf.byteLength, file_hash: fileHash, error: null,
+      records_rejected: rejected, file_size: fileSize, file_hash: fileHash, error: null,
       import_id: importId,
-      details: { sheets: wb.SheetNames, attempts: attemptErrors },
+      details: { sheets: sheetNames, attempts: attemptErrors },
     });
 
     return { year, status: "imported", format: used.format, found, imported: inserted, rejected };
