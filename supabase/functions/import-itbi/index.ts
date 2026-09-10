@@ -341,24 +341,39 @@ function normalizeHeader(value: unknown): string {
     .trim();
 }
 
-function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows: Row[]; found: number } {
-  const data: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-  if (!data.length) return { rows: [], found: 0 };
+type Sink = (batch: Row[]) => Promise<void>;
 
+/** Percorre a planilha linha a linha, sem materializar a matriz inteira. */
+function* sheetRows(ws: XLSX.WorkSheet): Generator<unknown[]> {
+  const ref = ws?.["!ref"];
+  if (!ref) return;
+  const range = XLSX.utils.decode_range(ref);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    const row: unknown[] = [];
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      row.push(cell ? (cell.v ?? null) : null);
+    }
+    yield row;
+  }
+}
+
+/** Retorna o total de linhas encontradas; as válidas são entregues ao sink em lotes. */
+async function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string, sink: Sink): Promise<number> {
   // Cabeçalho variável entre os anos: procura nas primeiras linhas.
-  let headerIdx = -1;
-  const map: Record<string, number> = {};
-  let header: string[] = [];
+  const preface: unknown[][] = [];
+  let header: string[] | null = null;
+  const iterator = sheetRows(ws);
 
-  for (let i = 0; i < Math.min(25, data.length); i++) {
-    const cells = (data[i] || []).map(normalizeHeader);
-    if (!cells.some(c => c.includes("LOGRADOURO"))) continue;
-    headerIdx = i;
-    header = cells;
-    break;
+  for (const row of iterator) {
+    const cells = row.map(normalizeHeader);
+    if (cells.some(c => c.includes("LOGRADOURO"))) { header = cells; break; }
+    preface.push(row);
+    if (preface.length >= 25) break;
   }
 
-  if (headerIdx >= 0) {
+  const map: Record<string, number> = {};
+  if (header) {
     // Aliases em ordem de prioridade: o primeiro predicado que casar vence.
     const ALIASES: Record<string, Array<(h: string) => boolean>> = {
       logradouro: [h => h.includes("NOME DO LOGRADOURO"), h => h.includes("LOGRADOURO") && !h.includes("NUMERO")],
@@ -388,16 +403,15 @@ function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows:
   }
 
   // Estrutura posicional conhecida (arquivos sem cabeçalho detectável).
-  if (headerIdx < 0 || map.logradouro === undefined) {
-    return parsePositional(data, year, importId);
+  if (!header || map.logradouro === undefined) {
+    return await parsePositional(sheetRows(ws), year, importId, sink);
   }
 
-  const rows: Row[] = [];
   let found = 0;
+  let batch: Row[] = [];
   const get = (v: unknown[], key: string) => (map[key] !== undefined ? v[map[key]] : null);
 
-  for (let i = headerIdx + 1; i < data.length; i++) {
-    const v = data[i];
+  for (const v of iterator) {
     if (!v || v.length < 3) continue;
 
     const logr = String(get(v, "logradouro") ?? "").trim();
@@ -423,7 +437,7 @@ function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows:
     if (numero && numero !== "0" && numero !== "99999") addressParts.push(numero);
     if (complemento) addressParts.push(complemento);
 
-    rows.push({
+    batch.push({
       address: addressParts.join(" ").slice(0, 500),
       neighborhood: bairro,
       area,
@@ -439,15 +453,20 @@ function parseSheet(ws: XLSX.WorkSheet, year: number, importId: string): { rows:
       venal_reference: venalReference,
       import_id: importId,
     });
+
+    if (batch.length >= BATCH_SIZE) { await sink(batch); batch = []; }
   }
 
-  return { rows, found };
+  if (batch.length) await sink(batch);
+  return found;
 }
 
-function parsePositional(data: unknown[][], year: number, importId: string): { rows: Row[]; found: number } {
-  const rows: Row[] = [];
+async function parsePositional(
+  rows: Iterable<unknown[]>, year: number, importId: string, sink: Sink,
+): Promise<number> {
   let found = 0;
-  for (const v of data) {
+  let batch: Row[] = [];
+  for (const v of rows) {
     if (!v || v.length < 20) continue;
     const logr = String(v[1] ?? "").trim();
     if (!logr) continue;
@@ -470,7 +489,7 @@ function parsePositional(data: unknown[][], year: number, importId: string): { r
     if (numero && numero !== "0" && numero !== "99999") addressParts.push(numero);
     if (complemento) addressParts.push(complemento);
 
-    rows.push({
+    batch.push({
       address: addressParts.join(" ").slice(0, 500), neighborhood: bairro, area,
       venal_value: venal, property_type: tipo, year,
       price_per_sqm: area && area > 0 ? Math.round((base / area) * 100) / 100 : null,
@@ -478,8 +497,11 @@ function parsePositional(data: unknown[][], year: number, importId: string): { r
       proportion_pct: proporcao, matricula, transaction_date: transactionDate,
       venal_reference: venalReference, import_id: importId,
     });
+
+    if (batch.length >= BATCH_SIZE) { await sink(batch); batch = []; }
   }
-  return { rows, found };
+  if (batch.length) await sink(batch);
+  return found;
 }
 
 function json(body: unknown, status = 200) {
