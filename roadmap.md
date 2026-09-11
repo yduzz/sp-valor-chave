@@ -1,4 +1,4 @@
 
 ## ITBI histórico (2006-2026)
-- [ ] Importar 2006 (teste) e validar itbi_imports/properties
+- [x] Importar 2006 (teste) — 112.758 registros, status success
 - [ ] Importar demais anos após aprovação
