@@ -68,13 +68,20 @@ Deno.serve(async (req) => {
     const sourceUrl: string | null = body?.source_url ?? null;
     if (!Number.isInteger(year)) return json({ error: "Informe { year }" }, 400);
 
-    const importId = crypto.randomUUID();
+    // Execução em fatias: permite retomar de onde parou sem estourar o limite de CPU.
+    const offset = Number(body?.offset ?? 0) || 0;
+    const maxRows = Number(body?.max_rows ?? 0) || Infinity;
+    const finalize = body?.finalize !== false;
+    const importId: string = body?.import_id ?? crypto.randomUUID();
+
     const startedAt = new Date().toISOString();
-    await supabase.from("itbi_imports").upsert({
-      year, source: SOURCE, status: "running", format: "csv", url: sourceUrl ?? `${BUCKET}/${path}`,
-      started_at: startedAt, finished_at: null, error: null, import_id: importId,
-      records_found: 0, records_imported: 0, records_rejected: 0,
-    }, { onConflict: "year,source" });
+    if (offset === 0) {
+      await supabase.from("itbi_imports").upsert({
+        year, source: SOURCE, status: "running", format: "csv", url: sourceUrl ?? `${BUCKET}/${path}`,
+        started_at: startedAt, finished_at: null, error: null, import_id: importId,
+        records_found: 0, records_imported: 0, records_rejected: 0,
+      }, { onConflict: "year,source" });
+    }
 
     const { data: file, error: dlError } = await supabase.storage.from(BUCKET).download(path);
     if (dlError || !file) throw new Error(`Falha ao ler ${BUCKET}/${path}: ${dlError?.message}`);
@@ -85,8 +92,10 @@ Deno.serve(async (req) => {
     let carry = "";
     let headerSeen = false;
     let found = 0;
+    let seen = 0;
     let inserted = 0;
     let rejected = 0;
+    let stopped = false;
     // deno-lint-ignore no-explicit-any
     let batch: Record<string, any>[] = [];
 
@@ -101,6 +110,9 @@ Deno.serve(async (req) => {
     const handleLine = async (line: string) => {
       if (!line) return;
       if (!headerSeen) { headerSeen = true; return; }
+      seen++;
+      if (seen <= offset) return;
+      if (found >= maxRows) { stopped = true; return; }
       found++;
       const row = toRow(splitCsvLine(line), importId);
       if (!row) { rejected++; return; }
@@ -109,7 +121,7 @@ Deno.serve(async (req) => {
     };
 
     try {
-      while (true) {
+      while (!stopped) {
         const { done, value } = await reader.read();
         if (done) break;
         carry += value;
@@ -118,17 +130,32 @@ Deno.serve(async (req) => {
           const line = carry.slice(0, idx).replace(/\r$/, "");
           carry = carry.slice(idx + 1);
           await handleLine(line);
+          if (stopped) break;
         }
       }
-      await handleLine(carry.replace(/\r$/, ""));
+      if (!stopped) await handleLine(carry.replace(/\r$/, ""));
       await flush();
+      try { await reader.cancel(); } catch (_) { /* ignore */ }
     } catch (insertError) {
       // Rollback do lote parcial: dados antigos do ano permanecem intactos.
       await supabase.from("properties").delete().eq("year", year).eq("import_id", importId);
       throw insertError;
     }
 
-    if (inserted === 0) throw new Error("Nenhum registro válido no CSV");
+    const nextOffset = offset + found;
+
+    if (stopped || !finalize) {
+      return json({
+        success: true, year, partial: true, import_id: importId,
+        processed: found, imported: inserted, rejected, next_offset: nextOffset,
+      });
+    }
+
+    const { count: totalForImport } = await supabase
+      .from("properties").select("id", { count: "exact", head: true })
+      .eq("year", year).eq("import_id", importId);
+
+    if (!totalForImport) throw new Error("Nenhum registro válido no CSV");
 
     // Troca segura: remove os registros antigos do ano só após a carga completa.
     await supabase.from("properties").delete().eq("year", year).neq("import_id", importId);
@@ -137,11 +164,11 @@ Deno.serve(async (req) => {
     await supabase.from("itbi_imports").upsert({
       year, source: SOURCE, status: "success", format: "csv",
       url: sourceUrl ?? `${BUCKET}/${path}`, started_at: startedAt,
-      finished_at: new Date().toISOString(), records_found: found, records_imported: inserted,
+      finished_at: new Date().toISOString(), records_found: nextOffset, records_imported: totalForImport,
       records_rejected: rejected, file_size: fileSize, error: null, import_id: importId,
     }, { onConflict: "year,source" });
 
-    return json({ success: true, year, found, imported: inserted, rejected });
+    return json({ success: true, year, found: nextOffset, imported: totalForImport, rejected });
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     try {
