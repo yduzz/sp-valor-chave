@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const BUCKET = "itbi-staging";
 const SOURCE = "prefeitura-sp";
-const BATCH_SIZE = 1000;
+const BATCH_SIZE = 5000;
 
 const COLS = [
   "address", "neighborhood", "area", "venal_value", "property_type", "year",
@@ -68,9 +68,11 @@ Deno.serve(async (req) => {
     const sourceUrl: string | null = body?.source_url ?? null;
     if (!Number.isInteger(year)) return json({ error: "Informe { year }" }, 400);
 
-    // Execução em fatias: permite retomar de onde parou sem estourar o limite de CPU.
-    const offset = Number(body?.offset ?? 0) || 0;
-    const maxRows = Number(body?.max_rows ?? 0) || Infinity;
+    // Modo legado por offset continua disponível para reparos pontuais.
+    // O modo single_pass deve ser usado nas importações normais para baixar o CSV apenas uma vez.
+    const singlePass = body?.single_pass === true;
+    const offset = singlePass ? 0 : (Number(body?.offset ?? 0) || 0);
+    const maxRows = singlePass ? Infinity : (Number(body?.max_rows ?? 0) || Infinity);
     const finalize = body?.finalize !== false;
     const importId: string = body?.import_id ?? crypto.randomUUID();
 
@@ -83,6 +85,7 @@ Deno.serve(async (req) => {
       }, { onConflict: "year,source" });
     }
 
+    // O arquivo é baixado uma única vez por execução.
     const { data: file, error: dlError } = await supabase.storage.from(BUCKET).download(path);
     if (dlError || !file) throw new Error(`Falha ao ler ${BUCKET}/${path}: ${dlError?.message}`);
 
@@ -101,10 +104,14 @@ Deno.serve(async (req) => {
 
     const flush = async () => {
       if (!batch.length) return;
-      const { error } = await supabase.from("properties").insert(batch);
-      if (error) throw new Error(`Falha ao inserir lote de ${year}: ${error.message}`);
-      inserted += batch.length;
+      const currentBatch = batch;
       batch = [];
+      const { error } = await supabase.from("properties").insert(currentBatch);
+      if (error) {
+        batch = currentBatch;
+        throw new Error(`Falha ao inserir lote de ${year}: ${error.message}`);
+      }
+      inserted += currentBatch.length;
     };
 
     const handleLine = async (line: string) => {
@@ -137,7 +144,7 @@ Deno.serve(async (req) => {
       await flush();
       try { await reader.cancel(); } catch (_) { /* ignore */ }
     } catch (insertError) {
-      // Rollback do lote parcial: dados antigos do ano permanecem intactos.
+      // Rollback apenas dos registros desta importação.
       await supabase.from("properties").delete().eq("year", year).eq("import_id", importId);
       throw insertError;
     }
@@ -157,7 +164,7 @@ Deno.serve(async (req) => {
 
     if (!totalForImport) throw new Error("Nenhum registro válido no CSV");
 
-    // Troca segura: remove os registros antigos do ano só após a carga completa.
+    // Troca segura: remove os registros antigos do ano somente após a carga completa.
     await supabase.from("properties").delete().eq("year", year).neq("import_id", importId);
     await supabase.from("properties").delete().eq("year", year).is("import_id", null);
 
