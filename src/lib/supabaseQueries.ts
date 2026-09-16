@@ -49,6 +49,46 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
     .map((v) => `address.ilike.%${v}%`)
     .join(",");
 
+  // Quando o usuário informa o número, não limitamos primeiro os registros
+  // por data. O número precisa participar da consulta antes do limite, para
+  // que registros históricos do imóvel não sejam descartados pelos 1.000
+  // registros mais recentes da mesma via.
+  if (number) {
+    const normalizedNumber = normalizeAddress(number);
+    const numberVariants = [
+      normalizedNumber,
+      normalizedNumber.replace(/^0+/, "") || "0",
+    ];
+
+    const numberFilter = numberVariants
+      .map((v) => `address.ilike.% ${v}`)
+      .join(",");
+
+    const { data, error } = await supabase
+      .from("properties")
+      .select("*")
+      .or(`${orFilter},${numberFilter}`)
+      .order("transaction_date", { ascending: false, nullsFirst: false })
+      .limit(5000);
+
+    if (error) throw error;
+
+    let results = data || [];
+
+    // O OR acima é propositalmente amplo; agora exigimos os tokens do
+    // logradouro e o número exato em memória para evitar falsos positivos.
+    results = results.filter((p) => {
+      const parsed = parseAddress(p.address);
+      const dbTokens = canonicalTokensOf(p.address);
+      const streetMatches = sortedKeywords.every((kw) =>
+        dbTokens.has(canonicalToken(kw))
+      );
+      return streetMatches && parsed.number === normalizedNumber;
+    });
+
+    return results;
+  }
+
   const { data, error } = await supabase
     .from("properties")
     .select("*")
@@ -69,38 +109,8 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
     });
   }
 
-  // Se um número específico foi informado, prioriza correspondências exatas.
-  if (number && results.length > 0) {
-    const wanted = normalizeAddress(number);
-    const exact = results.filter((p) => parseAddress(p.address).number === wanted);
-    if (exact.length > 0) {
-      exact.sort((a, b) => (b.transaction_date || "").localeCompare(a.transaction_date || ""));
-      return exact;
-    }
-
-    // Sem número exato no banco: usa os imóveis mais próximos da mesma via
-    // (mesma quadra), ordenados por proximidade numérica — comportamento de
-    // comparáveis, em vez de "nenhum imóvel encontrado".
-    const target = parseInt(wanted, 10);
-    if (!Number.isNaN(target)) {
-      const withDistance = results
-        .map((p) => {
-          const n = parseInt(parseAddress(p.address).number || "", 10);
-          return { p, d: Number.isNaN(n) ? Infinity : Math.abs(n - target) };
-        })
-        .filter((x) => x.d <= 120)
-        .sort((a, b) => a.d - b.d || (b.p.transaction_date || "").localeCompare(a.p.transaction_date || ""));
-
-      if (withDistance.length > 0) return withDistance.slice(0, 60).map((x) => x.p);
-    }
-    return [];
-  }
-
-
   return results;
 }
-
-
 
 export async function searchProperties(address: string): Promise<Property[]> {
   if (!address.trim()) return [];
@@ -108,8 +118,8 @@ export async function searchProperties(address: string): Promise<Property[]> {
   const { keywords, number } = extractSearchTerms(address);
 
   // Always use keyword-based search:
-  // - No number → returns ALL properties on that street.
-  // - With number → returns only exact-number matches (handled inside fetchPropertiesFromDatabase).
+  // - No number → returns properties on that street.
+  // - With number → returns historical records for the exact property.
   const cachedResults = await fetchPropertiesFromDatabase(keywords, number);
 
   if (cachedResults.length > 0) {
@@ -127,7 +137,6 @@ export async function searchProperties(address: string): Promise<Property[]> {
   if (error) throw error;
   return Array.isArray(data?.properties) ? (data.properties as Property[]) : [];
 }
-
 
 async function tryDirectSearch(address: string): Promise<Property[]> {
   const normalized = address
