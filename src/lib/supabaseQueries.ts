@@ -45,14 +45,12 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
   // as grafias equivalentes ("CARDEAL" também procura "CARD").
   const sortedKeywords = [...keywords].sort((a, b) => b.length - a.length);
   const primaryKeyword = sortedKeywords[0];
-  const orFilter = tokenVariants(primaryKeyword)
-    .map((v) => `address.ilike.%${v}%`)
-    .join(",");
+  const primaryVariants = tokenVariants(primaryKeyword);
 
-  // Quando o usuário informa o número, não limitamos primeiro os registros
-  // por data. O número precisa participar da consulta antes do limite, para
-  // que registros históricos do imóvel não sejam descartados pelos 1.000
-  // registros mais recentes da mesma via.
+  // Quando o usuário informa o número, o logradouro E o número participam
+  // da consulta ao banco. Antes, fazíamos OR entre os dois e só filtrávamos
+  // depois em memória; isso podia fazer o limite de registros ser atingido
+  // antes de chegarmos ao imóvel procurado.
   if (number) {
     const normalizedNumber = normalizeAddress(number);
     const numberVariants = [
@@ -60,34 +58,49 @@ async function fetchPropertiesFromDatabase(keywords: string[], number: string | 
       normalizedNumber.replace(/^0+/, "") || "0",
     ];
 
-    const numberFilter = numberVariants
-      .map((v) => `address.ilike.% ${v}`)
-      .join(",");
+    const queries = primaryVariants.flatMap((streetVariant) =>
+      numberVariants.map((numberVariant) =>
+        supabase
+          .from("properties")
+          .select("*")
+          .ilike("address", `%${streetVariant}%`)
+          .ilike("address", `% ${numberVariant}%`)
+          .order("transaction_date", { ascending: false, nullsFirst: false })
+          .limit(1000)
+      )
+    );
 
-    const { data, error } = await supabase
-      .from("properties")
-      .select("*")
-      .or(`${orFilter},${numberFilter}`)
-      .order("transaction_date", { ascending: false, nullsFirst: false })
-      .limit(5000);
+    const responses = await Promise.all(queries);
+    const firstError = responses.find((response) => response.error)?.error;
+    if (firstError) throw firstError;
 
-    if (error) throw error;
+    const byId = new Map<string, Property>();
+    for (const response of responses) {
+      for (const property of response.data || []) {
+        byId.set(property.id, property);
+      }
+    }
 
-    let results = data || [];
-
-    // O OR acima é propositalmente amplo; agora exigimos os tokens do
-    // logradouro e o número exato em memória para evitar falsos positivos.
-    results = results.filter((p) => {
-      const parsed = parseAddress(p.address);
-      const dbTokens = canonicalTokensOf(p.address);
-      const streetMatches = sortedKeywords.every((kw) =>
-        dbTokens.has(canonicalToken(kw))
+    // A consulta já restringe logradouro + número. Ainda conferimos todos os
+    // tokens e o número exato em memória para eliminar falsos positivos como
+    // 1000 quando o usuário procurou o nº 100.
+    return [...byId.values()]
+      .filter((p) => {
+        const parsed = parseAddress(p.address);
+        const dbTokens = canonicalTokensOf(p.address);
+        const streetMatches = sortedKeywords.every((kw) =>
+          dbTokens.has(canonicalToken(kw))
+        );
+        return streetMatches && parsed.number === normalizedNumber;
+      })
+      .sort((a, b) =>
+        (b.transaction_date || "").localeCompare(a.transaction_date || "")
       );
-      return streetMatches && parsed.number === normalizedNumber;
-    });
-
-    return results;
   }
+
+  const orFilter = primaryVariants
+    .map((v) => `address.ilike.%${v}%`)
+    .join(",");
 
   const { data, error } = await supabase
     .from("properties")
