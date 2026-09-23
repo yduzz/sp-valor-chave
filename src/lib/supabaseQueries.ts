@@ -1,5 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
 import {
   parseAddress,
   canonicalToken,
@@ -8,27 +6,115 @@ import {
   stripUnitDetails,
 } from "@/lib/addressNormalize";
 
-export type Property = Tables<"properties">;
-
-// Tokens genéricos (tipo de via e títulos) — úteis para conferência, mas
-// ruins como termo principal de busca por serem pouco distintivos.
-const GENERIC_TOKENS = new Set([
-  "RUA", "AVENIDA", "ALAMEDA", "TRAVESSA", "PRACA", "LARGO", "ESTRADA",
-  "RODOVIA", "VIADUTO", "MARGINAL", "DOUTOR", "DOUTORA", "PROFESSOR",
-  "PROFESSORA", "SENADOR", "DEPUTADO", "PADRE", "SANTA", "SANTO", "SAO",
-  "GENERAL", "CORONEL", "MARECHAL", "CAPITAO", "BRIGADEIRO", "CARDEAL",
-  "PRESIDENTE", "ENGENHEIRO", "MINISTRO", "CONSELHEIRO", "DESEMBARGADOR",
-  "BARAO", "VISCONDE", "MARQUES", "CONDE", "DUQUE", "DOM",
-  "JARDIM", "PARQUE", "VILA", "CONJUNTO",
-]);
-
-function extractSearchTerms(address: string): { keywords: string[]; number: string | null } {
-  const { tokens, number } = parseAddress(address);
-  const distinctive = tokens.filter((t) => !GENERIC_TOKENS.has(t));
-  return { keywords: distinctive.length > 0 ? distinctive : tokens, number };
+/**
+ * Representa um imóvel retornado pela API / PostgreSQL.
+ *
+ * Mantemos os mesmos campos utilizados pelo frontend,
+ * sem depender dos tipos gerados pelo Supabase.
+ */
+export interface Property {
+  id: string;
+  address: string;
+  neighborhood: string | null;
+  area: number | null;
+  venal_value: number;
+  property_type: string | null;
+  year: number;
+  fiscal_zone: string | null;
+  price_per_sqm: number | null;
+  ad_link: string | null;
+  created_at: string;
+  updated_at: string;
+  transaction_value: number | null;
+  transaction_value_full: number | null;
+  proportion_pct: number | null;
+  matricula: string | null;
+  transaction_date: string | null;
+  venal_reference: number | null;
+  import_id: string | null;
 }
 
-/** Tokens canônicos de um endereço vindo do banco (que costuma ser abreviado). */
+// Tokens genéricos (tipo de via e títulos).
+// São úteis para conferência, mas ruins como termo principal
+// de busca por serem pouco distintivos.
+const GENERIC_TOKENS = new Set([
+  "RUA",
+  "AVENIDA",
+  "ALAMEDA",
+  "TRAVESSA",
+  "PRACA",
+  "LARGO",
+  "ESTRADA",
+  "RODOVIA",
+  "VIADUTO",
+  "MARGINAL",
+  "DOUTOR",
+  "DOUTORA",
+  "PROFESSOR",
+  "PROFESSORA",
+  "SENADOR",
+  "DEPUTADO",
+  "PADRE",
+  "SANTA",
+  "SANTO",
+  "SAO",
+  "GENERAL",
+  "CORONEL",
+  "MARECHAL",
+  "CAPITAO",
+  "BRIGADEIRO",
+  "CARDEAL",
+  "PRESIDENTE",
+  "ENGENHEIRO",
+  "MINISTRO",
+  "CONSELHEIRO",
+  "DESEMBARGADOR",
+  "BARAO",
+  "VISCONDE",
+  "MARQUES",
+  "CONDE",
+  "DUQUE",
+  "DOM",
+  "JARDIM",
+  "PARQUE",
+  "VILA",
+  "CONJUNTO",
+]);
+
+/**
+ * Extrai os termos relevantes do endereço informado pelo usuário.
+ *
+ * Exemplo:
+ * "Rua Cardoso de Almeida, 100"
+ *
+ * Retorna:
+ * {
+ *   keywords: ["CARDOSO", "ALMEIDA"],
+ *   number: "100"
+ * }
+ */
+function extractSearchTerms(address: string): {
+  keywords: string[];
+  number: string | null;
+} {
+  const { tokens, number } = parseAddress(address);
+
+  const distinctive = tokens.filter(
+    (token) => !GENERIC_TOKENS.has(token)
+  );
+
+  return {
+    keywords: distinctive.length > 0 ? distinctive : tokens,
+    number,
+  };
+}
+
+/**
+ * Cria os tokens canônicos de um endereço vindo do banco.
+ *
+ * O banco pode possuir abreviações diferentes das utilizadas
+ * pelo usuário. A canonicalização permite comparar as duas formas.
+ */
 function canonicalTokensOf(addressValue: string): Set<string> {
   return new Set(
     stripUnitDetails(normalizeAddress(addressValue))
@@ -38,169 +124,267 @@ function canonicalTokensOf(addressValue: string): Set<string> {
   );
 }
 
-async function fetchPropertiesFromDatabase(keywords: string[], number: string | null) {
-  if (keywords.length === 0) return [];
+/**
+ * Busca propriedades através da API.
+ *
+ * Nenhuma consulta é feita diretamente ao Supabase.
+ * Toda comunicação passa pela API /api/property-search,
+ * que consulta o PostgreSQL.
+ */
+async function fetchPropertiesFromDatabase(
+  keywords: string[],
+  number: string | null
+): Promise<Property[]> {
+  if (keywords.length === 0) {
+    return [];
+  }
 
-  // Termo principal: o mais longo (mais distintivo). Busca no banco com TODAS
-  // as grafias equivalentes ("CARDEAL" também procura "CARD").
-  const sortedKeywords = [...keywords].sort((a, b) => b.length - a.length);
+  // O termo mais longo normalmente é o mais distintivo.
+  const sortedKeywords = [...keywords].sort(
+    (a, b) => b.length - a.length
+  );
+
   const primaryKeyword = sortedKeywords[0];
-  const primaryVariants = tokenVariants(primaryKeyword);
 
-  // Quando o usuário informa o número, o logradouro E o número participam
-  // da consulta ao banco. Antes, fazíamos OR entre os dois e só filtrávamos
-  // depois em memória; isso podia fazer o limite de registros ser atingido
-  // antes de chegarmos ao imóvel procurado.
-  if (number) {
-    const normalizedNumber = normalizeAddress(number);
-    const numberVariants = [
-      normalizedNumber,
-      normalizedNumber.replace(/^0+/, "") || "0",
-    ];
+  // Busca todas as variantes possíveis do termo principal.
+  // Exemplo: abreviações e formas equivalentes.
+  const variants = tokenVariants(primaryKeyword);
 
-    const queries = primaryVariants.flatMap((streetVariant) =>
-      numberVariants.map((numberVariant) =>
-        supabase
-          .from("properties")
-          .select("*")
-          .ilike("address", `%${streetVariant}%`)
-          .ilike("address", `% ${numberVariant}%`)
-          .order("transaction_date", { ascending: false, nullsFirst: false })
-          .limit(1000)
-      )
+  const responses = await Promise.all(
+    variants.map(async (variant) => {
+      const params = new URLSearchParams();
+
+      params.set("keyword", variant);
+
+      // Quando há número, enviamos também para a API.
+      // Isso permite que o PostgreSQL restrinja a busca
+      // diretamente ao logradouro + número.
+      if (number) {
+        params.set("number", normalizeAddress(number));
+      }
+
+      const response = await fetch(
+        `/api/property-search?${params.toString()}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Erro ao consultar propriedades.");
+      }
+
+      const data = await response.json();
+
+      return Array.isArray(data) ? (data as Property[]) : [];
+    })
+  );
+
+  // Junta os resultados de todas as variantes
+  // e remove imóveis duplicados.
+  const unique = new Map<string, Property>();
+
+  for (const properties of responses) {
+    for (const property of properties) {
+      const key = String(property.id);
+
+      if (!unique.has(key)) {
+        unique.set(key, property);
+      }
+    }
+  }
+
+  let results = [...unique.values()];
+
+  /**
+   * Se o endereço possuir mais de um termo distintivo,
+   * todos os termos precisam estar presentes no endereço
+   * retornado pelo banco.
+   */
+  if (sortedKeywords.length > 1) {
+    const otherKeywords = sortedKeywords.slice(1);
+
+    results = results.filter((property) => {
+      const dbTokens = canonicalTokensOf(property.address);
+
+      return otherKeywords.every((keyword) =>
+        dbTokens.has(canonicalToken(keyword))
+      );
+    });
+  }
+
+  /**
+   * Quando o usuário informou um número:
+   *
+   * 1. Primeiro procuramos correspondência exata.
+   * 2. Se não houver, procuramos imóveis próximos ao número.
+   *
+   * Isso mantém o comportamento de busca histórica sem
+   * retornar imóveis de números completamente diferentes.
+   */
+  if (number && results.length > 0) {
+    const wanted = normalizeAddress(number);
+
+    const exact = results.filter(
+      (property) =>
+        parseAddress(property.address).number === wanted
     );
 
-    const responses = await Promise.all(queries);
-    const firstError = responses.find((response) => response.error)?.error;
-    if (firstError) throw firstError;
+    if (exact.length > 0) {
+      exact.sort((a, b) =>
+        (b.transaction_date || "").localeCompare(
+          a.transaction_date || ""
+        )
+      );
 
-    const byId = new Map<string, Property>();
-    for (const response of responses) {
-      for (const property of response.data || []) {
-        byId.set(property.id, property);
+      return exact;
+    }
+
+    // Caso não encontre o número exato,
+    // procura imóveis próximos na mesma via.
+    const target = parseInt(wanted, 10);
+
+    if (!Number.isNaN(target)) {
+      const withDistance = results
+        .map((property) => {
+          const propertyNumber = parseInt(
+            parseAddress(property.address).number || "",
+            10
+          );
+
+          return {
+            property,
+            distance: Number.isNaN(propertyNumber)
+              ? Infinity
+              : Math.abs(propertyNumber - target),
+          };
+        })
+        .filter((item) => item.distance <= 120)
+        .sort(
+          (a, b) =>
+            a.distance - b.distance ||
+            (b.property.transaction_date || "").localeCompare(
+              a.property.transaction_date || ""
+            )
+        );
+
+      if (withDistance.length > 0) {
+        return withDistance
+          .slice(0, 60)
+          .map((item) => item.property);
       }
     }
 
-    // A consulta já restringe logradouro + número. Ainda conferimos todos os
-    // tokens e o número exato em memória para eliminar falsos positivos como
-    // 1000 quando o usuário procurou o nº 100.
-    return [...byId.values()]
-      .filter((p) => {
-        const parsed = parseAddress(p.address);
-        const dbTokens = canonicalTokensOf(p.address);
-        const streetMatches = sortedKeywords.every((kw) =>
-          dbTokens.has(canonicalToken(kw))
-        );
-        return streetMatches && parsed.number === normalizedNumber;
-      })
-      .sort((a, b) =>
-        (b.transaction_date || "").localeCompare(a.transaction_date || "")
-      );
+    return [];
   }
 
-  const orFilter = primaryVariants
-    .map((v) => `address.ilike.%${v}%`)
-    .join(",");
+  /**
+   * Sem número informado, retornamos os imóveis encontrados
+   * na via pesquisada.
+   */
+  return results;
+}
 
-  const { data, error } = await supabase
-    .from("properties")
-    .select("*")
-    .or(orFilter)
-    .order("transaction_date", { ascending: false, nullsFirst: false })
-    .limit(1000);
-
-  if (error) throw error;
-
-  let results = data || [];
-
-  // Confere os demais tokens comparando formas canônicas (abreviação = extenso).
-  if (sortedKeywords.length > 1) {
-    const otherKeywords = sortedKeywords.slice(1);
-    results = results.filter((p) => {
-      const dbTokens = canonicalTokensOf(p.address);
-      return otherKeywords.every((kw) => dbTokens.has(canonicalToken(kw)));
-    });
+/**
+ * Busca imóveis pelo endereço informado pelo usuário.
+ *
+ * Exemplo:
+ * "Rua Cardoso de Almeida, 100"
+ */
+export async function searchProperties(
+  address: string
+): Promise<Property[]> {
+  if (!address.trim()) {
+    return [];
   }
+
+  const { keywords, number } = extractSearchTerms(address);
+
+  const results = await fetchPropertiesFromDatabase(
+    keywords,
+    number
+  );
 
   return results;
 }
 
-export async function searchProperties(address: string): Promise<Property[]> {
-  if (!address.trim()) return [];
-
-  const { keywords, number } = extractSearchTerms(address);
-
-  // Always use keyword-based search:
-  // - No number → returns properties on that street.
-  // - With number → returns historical records for the exact property.
-  const cachedResults = await fetchPropertiesFromDatabase(keywords, number);
-
-  if (cachedResults.length > 0) {
-    return cachedResults;
-  }
-
-  // If the user typed an exact house number and we have no match in the DB,
-  // return empty instead of falling back to scraped/mock data.
-  if (number) return [];
-
-  const { data, error } = await supabase.functions.invoke("scrape-properties", {
-    body: { query: address },
-  });
-
-  if (error) throw error;
-  return Array.isArray(data?.properties) ? (data.properties as Property[]) : [];
-}
-
-async function tryDirectSearch(address: string): Promise<Property[]> {
+/**
+ * Busca direta por prefixo de endereço.
+ *
+ * Mantida para compatibilidade com fluxos que possam utilizar
+ * essa função futuramente.
+ */
+async function tryDirectSearch(
+  address: string
+): Promise<Property[]> {
   const normalized = address
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
     .replace(/[.,]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  const { data, error } = await supabase
-    .from("properties")
-    .select("*")
-    .ilike("address", `${normalized}%`)
-    .order("year", { ascending: false })
-    .limit(1000);
+  const response = await fetch(
+    `/api/property-search?prefix=${encodeURIComponent(
+      normalized
+    )}`
+  );
 
-  if (error || !data || data.length === 0) return [];
-  return data;
+  if (!response.ok) {
+    return [];
+  }
+
+  const data = await response.json();
+
+  return Array.isArray(data) ? (data as Property[]) : [];
 }
 
-export async function saveEvaluation(evaluation: {
-  address: string;
-  selected_property_ids: string[];
-  sale: { min: number; avg: number; max: number };
-  perSqm: { min: number; avg: number; max: number };
-  rent: { min: number; avg: number; max: number };
-}) {
-  const { error } = await supabase.from("evaluations").insert({
-    address: evaluation.address,
-    selected_property_ids: evaluation.selected_property_ids,
-    sale_min: evaluation.sale.min,
-    sale_avg: evaluation.sale.avg,
-    sale_max: evaluation.sale.max,
-    per_sqm_min: evaluation.perSqm.min,
-    per_sqm_avg: evaluation.perSqm.avg,
-    per_sqm_max: evaluation.perSqm.max,
-    rent_min: evaluation.rent.min,
-    rent_avg: evaluation.rent.avg,
-    rent_max: evaluation.rent.max,
+/**
+ * Salva uma avaliação através da API.
+ */
+export async function saveEvaluation(
+  evaluation: {
+    address: string;
+    selected_property_ids: string[];
+    sale: {
+      min: number;
+      avg: number;
+      max: number;
+    };
+    perSqm: {
+      min: number;
+      avg: number;
+      max: number;
+    };
+    rent: {
+      min: number;
+      avg: number;
+      max: number;
+    };
+  }
+) {
+  const response = await fetch("/api/evaluations", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(evaluation),
   });
 
-  if (error) throw error;
+  if (!response.ok) {
+    throw new Error("Erro ao salvar avaliação.");
+  }
 }
 
+/**
+ * Busca o histórico de avaliações através da API.
+ */
 export async function getEvaluationHistory() {
-  const { data, error } = await supabase
-    .from("evaluations")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const response = await fetch("/api/evaluations");
 
-  if (error) throw error;
-  return data || [];
+  if (!response.ok) {
+    throw new Error("Erro ao buscar histórico.");
+  }
+
+  const data = await response.json();
+
+  return Array.isArray(data) ? data : [];
 }

@@ -40,3 +40,7 @@ build/
 
 # Local ITBI datasets
 data/
+.vercel
+.env*
+
+supabase/.temp/

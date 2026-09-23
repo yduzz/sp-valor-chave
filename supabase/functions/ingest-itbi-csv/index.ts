@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const BUCKET = "itbi-staging";
 const SOURCE = "prefeitura-sp";
-const BATCH_SIZE = 5000;
+const BATCH_SIZE = 1000;
 
 const COLS = [
   "address", "neighborhood", "area", "venal_value", "property_type", "year",
