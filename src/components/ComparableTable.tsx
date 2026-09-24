@@ -54,14 +54,15 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
         <table className="w-full text-[13px]">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr className="border-b border-border">
-              <th className="px-3 py-1.5 text-center font-display font-semibold text-muted-foreground">Ano</th>
-              <th className="px-3 py-1.5 text-left font-display font-semibold text-muted-foreground">Endereço</th>
-              <th className="px-3 py-1.5 text-left font-display font-semibold text-muted-foreground">Detalhes</th>
-              <th className="px-3 py-1.5 text-right font-display font-semibold text-muted-foreground">M²</th>
-              <th className="px-3 py-1.5 text-right font-display font-semibold text-muted-foreground">Preço</th>
-              <th className="px-3 py-1.5 text-right font-display font-semibold text-muted-foreground">R$/m²</th>
-              <th className="px-3 py-1.5 text-center font-display font-semibold text-muted-foreground">Proporção</th>
               <th className="px-3 py-1.5 text-center font-display font-semibold text-muted-foreground">Mês/Ano</th>
+              <th className="px-3 py-1.5 text-right font-display font-semibold text-muted-foreground">Área útil</th>
+              <th className="px-3 py-1.5 text-right font-display font-semibold text-muted-foreground">Valor</th>
+              <th className="px-3 py-1.5 text-right font-display font-semibold text-muted-foreground">Valor/m²</th>
+              <th className="px-3 py-1.5 text-center font-display font-semibold text-muted-foreground">Matrícula</th>
+              <th className="px-3 py-1.5 text-center font-display font-semibold text-muted-foreground">Proporção</th>
+              <th className="px-3 py-1.5 text-center font-display font-semibold text-muted-foreground">Andar</th>
+              <th className="px-3 py-1.5 text-left font-display font-semibold text-muted-foreground">Uso</th>
+              <th className="px-3 py-1.5 text-left font-display font-semibold text-muted-foreground">Endereço</th>
             </tr>
           </thead>
           <tbody>
@@ -88,14 +89,8 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
                   <td className="px-3 py-1.5 text-center text-muted-foreground whitespace-nowrap">
                     {p.year}
                   </td>
-                  <td className="px-3 py-1.5">
-                    <p className="font-medium text-foreground leading-tight">{p.address}</p>
-                    {locationParts.length > 0 && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{locationParts.join(" · ")}</p>
-                    )}
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <p className="text-foreground">{detailParts.join(" · ")}</p>
+                  <td className="px-3 py-1.5 text-center text-muted-foreground whitespace-nowrap">
+                    {formatPeriod(p.transactionDate, p.year)}
                   </td>
                   <td className="px-3 py-1.5 text-right text-foreground whitespace-nowrap">
                     {p.area ? `${p.area} m²` : "—"}
@@ -111,13 +106,25 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
                   <td className="px-3 py-1.5 text-right text-muted-foreground whitespace-nowrap">
                     {formatCurrency(referencePerSqm(p))}
                   </td>
+                  <td className="px-3 py-1.5 text-center text-muted-foreground whitespace-nowrap">
+                    {p.matricula || "—"}
+                  </td>
                   <td className="px-3 py-1.5 text-center whitespace-nowrap">
                     <span className={isPartial ? "text-amber-600 font-medium" : "text-muted-foreground"}>
                       {p.proportionPct != null ? `${Number(p.proportionPct).toFixed(2)}%` : "100%"}
                     </span>
                   </td>
                   <td className="px-3 py-1.5 text-center text-muted-foreground whitespace-nowrap">
-                    {formatPeriod(p.transactionDate, p.year)}
+                    {floorInfo || "—"}
+                  </td>
+                  <td className="px-3 py-1.5 text-left text-foreground whitespace-nowrap">
+                    {typeLabel}
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <p className="font-medium text-foreground leading-tight">{p.address}</p>
+                    {locationParts.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{locationParts.join(" · ")}</p>
+                    )}
                   </td>
                 </tr>
               );
