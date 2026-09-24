@@ -54,6 +54,7 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
         <table className="w-full text-[13px]">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr className="border-b border-border">
+              <th className="px-3 py-1.5 text-center font-display font-semibold text-muted-foreground">Mês/Ano</th>
               <th className="px-3 py-1.5 text-left font-display font-semibold text-muted-foreground">Endereço</th>
               <th className="px-3 py-1.5 text-left font-display font-semibold text-muted-foreground">Detalhes</th>
               <th className="px-3 py-1.5 text-right font-display font-semibold text-muted-foreground">M²</th>
@@ -84,6 +85,9 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
                     disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
                   } ${isSelected ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-muted/30"}`}
                 >
+                  <td className="px-3 py-1.5 text-center text-muted-foreground whitespace-nowrap">
+                    {formatPeriod(p.transactionDate, p.year)}
+                  </td>
                   <td className="px-3 py-1.5">
                     <p className="font-medium text-foreground leading-tight">{p.address}</p>
                     {locationParts.length > 0 && (
@@ -111,9 +115,6 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
                     <span className={isPartial ? "text-amber-600 font-medium" : "text-muted-foreground"}>
                       {p.proportionPct != null ? `${Number(p.proportionPct).toFixed(2)}%` : "100%"}
                     </span>
-                  </td>
-                  <td className="px-3 py-1.5 text-center text-muted-foreground whitespace-nowrap">
-                    {formatPeriod(p.transactionDate, p.year)}
                   </td>
                 </tr>
               );
