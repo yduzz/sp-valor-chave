@@ -61,7 +61,6 @@ export default function ComparableTable({ properties, selected, onToggle, maxSel
               <th className="px-3 py-1.5 text-right font-display font-semibold text-muted-foreground">Preço</th>
               <th className="px-3 py-1.5 text-right font-display font-semibold text-muted-foreground">R$/m²</th>
               <th className="px-3 py-1.5 text-center font-display font-semibold text-muted-foreground">Proporção</th>
-              <th className="px-3 py-1.5 text-center font-display font-semibold text-muted-foreground">Mês/Ano</th>
             </tr>
           </thead>
           <tbody>
