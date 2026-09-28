@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { searchProperties, saveEvaluation, type Property } from "@/lib/supabaseQueries";
-import { calculatePricing } from "@/lib/mockData";
+import { calculatePricing, referenceValue } from "@/lib/mockData";
 import ComparableTable from "@/components/ComparableTable";
 import RefinedPricingCard from "@/components/RefinedPricingCard";
 import { refinePricing, type RefinedPricing } from "@/lib/refinedPricing";
@@ -65,9 +65,22 @@ export default function ResultPage() {
     const result = calculatePricing(mapped);
     setPricing(result);
 
-    // Camada de refinamento e apresentação (não altera o cálculo original)
+    // Na faixa de VENDA, mínimo e máximo vêm diretamente dos 3 comparáveis selecionados.
+    const selectedSaleValues = mapped
+      .map((property) => referenceValue(property))
+      .filter((value) => Number.isFinite(value) && value > 0);
+
+    const selectedSaleRange =
+      selectedSaleValues.length > 0
+        ? {
+            min: Math.min(...selectedSaleValues),
+            max: Math.max(...selectedSaleValues),
+          }
+        : undefined;
+
+    // Camada de refinamento e apresentação
     const primaryNeighborhood = selectedProps[0]?.neighborhood || "";
-    setRefined(refinePricing(result, primaryNeighborhood));
+    setRefined(refinePricing({ ...result, selectedSaleRange }, primaryNeighborhood));
 
     setShowResult(true);
 
