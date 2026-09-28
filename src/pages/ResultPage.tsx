@@ -1,12 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { searchProperties, saveEvaluation, type Property } from "@/lib/supabaseQueries";
-import { calculatePricing, formatCurrency, referencePerSqm } from "@/lib/mockData";
+import { calculatePricing } from "@/lib/mockData";
 import ComparableTable from "@/components/ComparableTable";
-import PricingResult from "@/components/PricingResult";
-import MarketValuationCard from "@/components/MarketValuationCard";
 import RefinedPricingCard from "@/components/RefinedPricingCard";
-import { aggregateMarketValuation, type MarketValuationResult } from "@/lib/marketValuation";
 import { refinePricing, type RefinedPricing } from "@/lib/refinedPricing";
 import AddressSearch from "@/components/AddressSearch";
 import Header from "@/components/Header";
@@ -24,7 +21,6 @@ export default function ResultPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [showResult, setShowResult] = useState(false);
   const [pricing, setPricing] = useState<ReturnType<typeof calculatePricing> | null>(null);
-  const [marketValuation, setMarketValuation] = useState<MarketValuationResult | null>(null);
   const [refined, setRefined] = useState<RefinedPricing | null>(null);
 
   useEffect(() => {
@@ -68,19 +64,6 @@ export default function ResultPage() {
 
     const result = calculatePricing(mapped);
     setPricing(result);
-
-    // Camada de validação cruzada FipeZAP + CRECI + IBRESP
-    const valuation = aggregateMarketValuation(
-      mapped
-        .filter((m) => m.area > 0)
-        .map((m) => ({
-          area: m.area,
-          pricePerSqmBase: referencePerSqm(m),
-          baseYear: m.year,
-          neighborhood: m.neighborhood,
-        })),
-    );
-    setMarketValuation(valuation);
 
     // Camada de refinamento e apresentação (não altera o cálculo original)
     const primaryNeighborhood = selectedProps[0]?.neighborhood || "";
@@ -176,9 +159,7 @@ export default function ResultPage() {
         )}
 
 
-        {showResult && pricing && <PricingResult sale={pricing.sale} perSqm={pricing.perSqm} rent={pricing.rent} />}
         {showResult && refined && <RefinedPricingCard refined={refined} />}
-        {showResult && marketValuation && <MarketValuationCard valuation={marketValuation} />}
       </div>
     </div>
   );
