@@ -17,6 +17,11 @@ export interface BasePricing {
   sale: PricingRange;
   perSqm: PricingRange;
   rent: PricingRange;
+  /** Faixa real dos valores dos comparáveis selecionados pelo usuário. */
+  selectedSaleRange?: {
+    min: number;
+    max: number;
+  };
 }
 
 export interface RefinedPricing {
@@ -69,8 +74,10 @@ export function refinePricing(base: BasePricing, neighborhood?: string): Refined
   const minPct = -0.15 - Math.abs(adjustment) * 0.33; // ~-15% a -20%
   const maxPct = 0.15 + Math.max(0, adjustment) * 0.66; // ~+15% a +25%
 
-  const minSale = Math.round(refinedAvgSale * (1 + clamp(minPct, -0.20, -0.10)));
-  const maxSale = Math.round(refinedAvgSale * (1 + clamp(maxPct, 0.10, 0.25)));
+  // Para VENDA, mínimo e máximo devem refletir exatamente os três comparáveis
+  // escolhidos pelo usuário, sem criar uma faixa artificial por percentual.
+  const minSale = base.selectedSaleRange?.min ?? Math.round(refinedAvgSale * (1 + clamp(minPct, -0.20, -0.10)));
+  const maxSale = base.selectedSaleRange?.max ?? Math.round(refinedAvgSale * (1 + clamp(maxPct, 0.10, 0.25)));
 
   // Garante avg dentro da faixa
   const safeAvgSale = clamp(refinedAvgSale, minSale, maxSale);
