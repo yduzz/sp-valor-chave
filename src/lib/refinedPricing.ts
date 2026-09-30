@@ -67,20 +67,18 @@ export function refinePricing(base: BasePricing, neighborhood?: string): Refined
   const raw = NEIGHBORHOOD_ADJUSTMENT[normalize(neighborhood)] ?? 0;
   const adjustment = clamp(raw, -0.15, 0.15);
 
-  const refinedAvgSale = Math.round(base.sale.avg * (1 + adjustment));
-
   // Faixa: mínimo entre -10% e -20%, máximo entre +10% e +25%
   // Usamos amplitude proporcional ao ajuste: mercados mais aquecidos => faixa máxima maior
   const minPct = -0.15 - Math.abs(adjustment) * 0.33; // ~-15% a -20%
   const maxPct = 0.15 + Math.max(0, adjustment) * 0.66; // ~+15% a +25%
 
-  // Para VENDA, mínimo e máximo devem refletir exatamente os três comparáveis
-  // escolhidos pelo usuário, sem criar uma faixa artificial por percentual.
-  const minSale = base.selectedSaleRange?.min ?? Math.round(refinedAvgSale * (1 + clamp(minPct, -0.20, -0.10)));
-  const maxSale = base.selectedSaleRange?.max ?? Math.round(refinedAvgSale * (1 + clamp(maxPct, 0.10, 0.25)));
+  // Para VENDA, mínimo e máximo refletem exatamente os comparáveis selecionados.
+  const minSale = base.selectedSaleRange?.min ?? Math.round(base.sale.avg * (1 + clamp(minPct, -0.20, -0.10)));
+  const maxSale = base.selectedSaleRange?.max ?? Math.round(base.sale.avg * (1 + clamp(maxPct, 0.10, 0.25)));
 
-  // Garante avg dentro da faixa
-  const safeAvgSale = clamp(refinedAvgSale, minSale, maxSale);
+  // Valor estimado para VENDA = média entre mínimo encontrado,
+  // preço médio encontrado e máximo encontrado.
+  const safeAvgSale = Math.round((minSale + base.sale.avg + maxSale) / 3);
 
   // Per m² seguindo a mesma proporção
   const refinedAvgPerSqm = Math.round(base.perSqm.avg * (1 + adjustment));
